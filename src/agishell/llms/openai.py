@@ -4,7 +4,7 @@ import aiohttp
 from typing import List, Dict
 
 
-class ChatOpenAI:
+class _OpenAI:
     def __init__(self, url=None, api_key=None):
         self.url = url if url else os.getenv("OPENAI_URL")
         self.api_key = api_key if api_key else os.getenv("OPENAI_KEY")
@@ -27,6 +27,8 @@ class ChatOpenAI:
     def set_pre_prompt(self, pre_prompt):
         self.pre_prompt = pre_prompt
 
+
+class ChatOpenAI(_OpenAI):
     async def invoke(self, messages: List[Dict]):
         url = "{0}/v1/chat/completions".format(self.url)
 
@@ -53,17 +55,23 @@ class ChatOpenAI:
                 message = result["choices"][0]["message"]
                 return {"content": message["content"], "role": message["role"]}
 
-    # async def audio_transcription_by_data(self, filename, file):
-    #     url = "{0}/v1/audio/transcriptions".format(self.proxy_url)
-    #     files = {
-    #         'file': (filename, file),
-    #     }
-    #     req_data = {
-    #         "model": "whisper-1",
-    #     }
-    #
-    #     async with aiohttp.ClientSession() as session:
-    #         async with session.post(url, data=req_data, files=files, headers=self.headers) as res:
-    #             if res.status != 200:
-    #                 return None
-    #             return await res.text()
+
+class Tools(_OpenAI):
+    async def audio_transcription_by_data(self, filename, file):
+        url = "{0}/v1/audio/transcriptions".format(self.url)
+        files = {
+            'file': (filename, file),
+        }
+        req_data = {
+            "model": "whisper-1",
+        }
+
+        headers = {
+            'Authorization': 'Bearer {0}'.format(self.api_key),
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, data=req_data, files=files, headers=headers) as res:
+                if res.status != 200:
+                    return None
+                return await res.text()

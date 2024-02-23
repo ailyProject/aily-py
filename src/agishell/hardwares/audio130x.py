@@ -1,6 +1,8 @@
 import struct
+import random
 import time
 import threading
+import asyncio
 import serial
 
 from loguru import logger
@@ -103,14 +105,12 @@ MEDIA_READ_LENGTH = 1024
 STANDARD_HEAD_LEN = 16
 
 
-class AudioModule(threading.Thread):
+class AudioModule:
     received_data = Subject()
 
-    def __init__(self, device):
-        threading.Thread.__init__(self)
-        self.device = device
-        self.port = device.port
-        self.baud = device.baud
+    def __init__(self, port=None, baud=1000000):
+        self.port = port
+        self.baud = baud
         self.serial = None
         self.running = True
 
@@ -146,9 +146,10 @@ class AudioModule(threading.Thread):
 
     def init(self):
         # logger.debug(f'{self.port, self.baud}')
-        self.serial = serial.Serial(self.port, self.baud, timeout=2)
+        # self.serial = serial.Serial(self.port, self.baud, timeout=2)
+        logger.info("serial init: {0}, {1}".format(self.port, self.baud))
 
-    def run(self):
+    async def run(self):
         logger.info('serial run')
         while True:
             # logger.info('test run1')
@@ -164,15 +165,18 @@ class AudioModule(threading.Thread):
             #     self.media_read_start = 0
             #     self.media_read_end = MEDIA_READ_LENGTH
 
-            data = self.serial.read(self.read_length)
-            if len(data) < self.read_length:
-                # time.sleep(0.005)
-                # if len(data):
-                #     print(data)
-                continue
+            # data = self.serial.read(self.read_length)
+            # if len(data) < self.read_length:
+            #     # time.sleep(0.005)
+            #     # if len(data):
+            #     #     print(data)
+            #     continue
+            #
+            # self.data_parse(data)
+            self.received_data.on_next({"state": self.state, "data": random.randint(0, 100)})
+            print("发出数据")
 
-            self.data_parse(data)
-            self.received_data.on_next({"state": self.state, "data": data})
+            await asyncio.sleep(5)
 
             # func = self.cmd_action.get(self.state)
             # if func:

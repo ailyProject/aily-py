@@ -12,6 +12,8 @@ setup(
         "python-dotenv == 1.0.1",
         "aiohttp == 3.9.3",
         "reactivex == 4.0.4",
-        "loguru"
+        "loguru",
+        "requests",
+        "pyserial"
     ]
 )

@@ -7,6 +7,7 @@ class AGIShellLLM:
     # TODO Prompt Template
     # TODO Chat Cache
     # TODO Token数量限制
+    # TODO 会话自动过期，过期时间配置
 
     def __init__(self, llm):
         self.llm = llm

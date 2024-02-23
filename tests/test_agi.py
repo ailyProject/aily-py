@@ -3,6 +3,8 @@ import unittest
 from dotenv import load_dotenv
 from agishell.llms.openai import ChatOpenAI
 from agishell import AGIShellLLM
+from agishell.aigc import AIGC
+from agishell.hardwares.audio130x import AudioModule
 
 load_dotenv(".env")
 
@@ -23,6 +25,7 @@ class TestAgiLLM(unittest.IsolatedAsyncioTestCase):
         llm.set_server(os.getenv("OPENAI_PROXY_URL"))
         result = await llm.invoke("天空为什么是蓝色的")
 
+        print(result)
         self.assertIsNotNone(result)
 
 
