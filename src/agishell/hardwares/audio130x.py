@@ -146,8 +146,8 @@ class AudioModule:
 
     def init(self):
         # logger.debug(f'{self.port, self.baud}')
-        # self.serial = serial.Serial(self.port, self.baud, timeout=2)
-        logger.info("serial init: {0}, {1}".format(self.port, self.baud))
+        self.serial = serial.Serial(self.port, self.baud, timeout=2)
+        # logger.info("serial init: {0}, {1}".format(self.port, self.baud))
 
     async def run(self):
         logger.info('serial run')
@@ -165,18 +165,18 @@ class AudioModule:
             #     self.media_read_start = 0
             #     self.media_read_end = MEDIA_READ_LENGTH
 
-            # data = self.serial.read(self.read_length)
-            # if len(data) < self.read_length:
-            #     # time.sleep(0.005)
-            #     # if len(data):
-            #     #     print(data)
-            #     continue
-            #
-            # self.data_parse(data)
-            self.received_data.on_next({"state": self.state, "data": random.randint(0, 100)})
+            data = self.serial.read(self.read_length)
+            if len(data) < self.read_length:
+                # time.sleep(0.005)
+                # if len(data):
+                #     print(data)
+                continue
+
+            self.data_parse(data)
+            self.received_data.on_next({"state": self.state, "data": data})
             print("发出数据")
 
-            await asyncio.sleep(5)
+            await asyncio.sleep(0.1)
 
             # func = self.cmd_action.get(self.state)
             # if func:
