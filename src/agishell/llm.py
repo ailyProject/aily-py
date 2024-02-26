@@ -2,7 +2,7 @@ from reactivex.subject import Subject
 
 
 class AGIShellLLM:
-    result = Subject()
+    event = Subject()
 
     # TODO Prompt Template
     # TODO Chat Cache
@@ -35,14 +35,16 @@ class AGIShellLLM:
         messages = self.chat_records
         messages.append({"role": "user", "content": content})
 
+        # 开始调用事件发起
+        self.event.on_next("invoke_start")
         invoke_result = await self.llm.invoke(messages)
-        # TODO 根据返回值类型进行相应的操作
+        # TODO 根据返回值类型进行相应的操作，主要是对function call事件的处理
         self.chat_records.append({"role": invoke_result["role"], "content": invoke_result["content"]})
         # TODO token消耗统计等
 
-        self.result.on_next(invoke_result)
-
-        return invoke_result
+        # 结束调用事件发起
+        self.event.on_next("invoke_end")
+        self.event.on_next("invoke_result")
 
     async def clear(self):
         self.chat_records.clear()

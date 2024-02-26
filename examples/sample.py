@@ -24,9 +24,20 @@ def msg_handler(msg):
 
 
 # 调用
-aigc = AIGC(audio)
+aigc = AIGC(audio, llm)
 aigc.init()
 aigc.hardware_data.subscribe(
     lambda i: msg_handler(i)
+)
+aigc.llm_invoke_start.subscribe(
+    lambda i: print("开始调用LLM")
+)
+
+aigc.llm_invoke_end.subscribe(
+    lambda i: print("结束调用LLM")
+)
+
+aigc.llm_invoke_result.subscribe(
+    lambda i: print("调用LLM完成, 结果为: {0}".format(i))
 )
 aigc.run()
