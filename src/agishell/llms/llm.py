@@ -1,7 +1,9 @@
 from reactivex.subject import Subject
 
+from .openai import ChatOpenAI
 
-class AGIShellLLM:
+
+class ChatAI:
     event = Subject()
 
     # TODO Prompt Template
@@ -11,7 +13,9 @@ class AGIShellLLM:
     # TODO 开始调用/结束调用事件发起
 
     def __init__(self, llm):
-        self.llm = llm
+        if not llm:
+            raise ValueError("请指定需要使用的服务, 如OpenAI, Gemini等")
+        self.llm = ChatOpenAI()
         self.chat_records = []
 
     def set_key(self, key):

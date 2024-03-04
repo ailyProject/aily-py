@@ -12,6 +12,7 @@ setup(
         "python-dotenv == 1.0.1",
         "aiohttp == 3.9.3",
         "reactivex == 4.0.4",
+        "tiktoken == 0.6.0",
         "loguru",
         "requests",
         "pyserial"
