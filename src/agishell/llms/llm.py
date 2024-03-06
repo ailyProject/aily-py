@@ -1,6 +1,7 @@
+import asyncio
 from reactivex.subject import Subject
 
-from .openai import ChatOpenAI
+from .openai import OpenAI
 
 
 class ChatAI:
@@ -12,11 +13,20 @@ class ChatAI:
     # TODO 会话自动过期，过期时间配置
     # TODO 开始调用/结束调用事件发起
 
-    def __init__(self, llm):
+    def __init__(self, llm, event):
         if not llm:
             raise ValueError("请指定需要使用的服务, 如OpenAI, Gemini等")
-        self.llm = ChatOpenAI()
+        self.aigc_event = event
+        self.llm = OpenAI()
         self.chat_records = []
+
+        self.aigc_event.subscribe(lambda i: self.event_handler(i))
+
+    def event_handler(self, event):
+        if event["type"] == "wakeup":
+            self.clear_chat_records()
+        elif event["type"] == "invoke":
+            asyncio.run(self.invoke(event["data"]))
 
     def set_key(self, key):
         self.llm.set_key(key)
@@ -40,15 +50,14 @@ class ChatAI:
         messages.append({"role": "user", "content": content})
 
         # 开始调用事件发起
-        self.event.on_next("invoke_start")
+        self.event.on_next({"type": "invoke_start", "data": ""})
         invoke_result = await self.llm.invoke(messages)
         # TODO 根据返回值类型进行相应的操作，主要是对function call事件的处理
         self.chat_records.append({"role": invoke_result["role"], "content": invoke_result["content"]})
         # TODO token消耗统计等
 
         # 结束调用事件发起
-        self.event.on_next("invoke_end")
-        self.event.on_next("invoke_result")
+        self.event.on_next({"type": "invoke_end", "data": invoke_result})
 
-    async def clear(self):
+    def clear_chat_records(self):
         self.chat_records.clear()

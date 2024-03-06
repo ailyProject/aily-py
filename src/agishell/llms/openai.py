@@ -27,11 +27,13 @@ class OpenAI:
 
     def set_pre_prompt(self, pre_prompt):
         self.pre_prompt = pre_prompt
-    
+
+    @staticmethod
     def get_text_token_count(text):
         enc = tiktoken.get_encoding("cl100k_base")
-        return len(enc)
-        
+        tokens_length = enc.encode_single_token(text)
+        return tokens_length
+
     def build_prompt(self, messages):
         model_name = self.model
         if model_name == "gpt-3.5-turbo":
@@ -42,12 +44,12 @@ class OpenAI:
             max_token_length = 127999 - 4096
         else:
             raise ValueError("Invalid model name")
-        
+
         if self.pre_prompt:
             current_token_length = self.get_text_token_count(self.pre_prompt)
         else:
             current_token_length = 0
-        
+
         new_messages = []
         for message in reversed(messages):
             new_message = {
@@ -62,23 +64,21 @@ class OpenAI:
                 new_messages.insert(0, new_message)
             else:
                 break
-        
+
         if self.pre_prompt:
             new_messages.insert(0, {"role": "system", "content": self.pre_prompt})
-        
+
         return new_messages
-    
 
     async def invoke(self, messages: List[Dict]):
         url = "{0}/v1/chat/completions".format(self.url)
 
-        if self.pre_prompt:
-            messages.insert(0, {"role": "system", "content": self.pre_prompt})
+        messages = self.build_prompt(messages)
 
         req_data = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.5,
+            "temperature": self.temperature,
             "stream": False,
         }
 
@@ -94,7 +94,6 @@ class OpenAI:
             result = res.json()
             message = result["choices"][0]["message"]
             return {"content": message["content"], "role": message["role"]}
-    
 
     async def audio_transcription(self, filename, file):
         url = "{0}/v1/audio/transcriptions".format(self.url)
