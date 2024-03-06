@@ -1,7 +1,7 @@
 import asyncio
 from reactivex.subject import Subject
-from hardwares.audio130x import AudioModule
-from llms.llm import ChatAI
+from .hardwares.audio130x import AudioModule
+from .llms.llm import ChatAI
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,22 +17,34 @@ class AIGC:
         self.baudrate = baudrate
 
         self.hardware = None
-        self.llm_model = "openai"
+
         self.llm = None
+        self.llm_name = "openai"
+        self.llm_key = ""
+        self.llm_model_name = ""
+        self.llm_server = ""
+        self.llm_temperature = 0.5
+        self.llm_pre_prompt = ""
 
     def set_hardware(self, module):
         self.hardware = module
 
-    def set_llm(self, llm_model):
+    def set_llm(self, llm_name):
         # TODO 判断llm是否在支持的列表中
-        self.llm_model = llm_model
+        self.llm_name = llm_name
 
-    def init(self):
+    def init(self, llm_name="openai"):
         if self.hardware is None:
             self.hardware = AudioModule(self.port, self.baudrate, self._hardware_event)
         self.hardware.init()
         self.hardware.event.subscribe(lambda i: self.hardware_event_handler(i))
-        self.llm = ChatAI(self.llm_model, self._llm_event)
+        if self.llm is None:
+            self.llm = ChatAI(llm_name, self._llm_event)
+            self.llm.set_key(self.llm_key)
+            self.llm.set_model(self.llm_model_name)
+            self.llm.set_server(self.llm_server)
+            self.llm.set_temp(self.llm_temperature)
+            self.llm.set_pre_prompt(self.llm_pre_prompt)
         self.llm.event.subscribe(lambda i: self.llm_event_handler(i))
 
     def hardware_event_handler(self, event):
@@ -49,19 +61,29 @@ class AIGC:
         self._llm_event.on_next({"type": "invoke", "data": content})
 
     def set_key(self, key):
-        self.llm.set_key(key)
+        if self.llm:
+            self.llm.set_key(key)
+        self.llm_key = key
 
     def set_model(self, model_name):
-        self.llm.set_model(model_name)
+        if self.llm:
+            self.llm.set_model(model_name)
+        self.llm_model_name = model_name
 
     def set_server(self, url):
-        self.llm.set_server(url)
+        if self.llm:
+            self.llm.set_server(url)
+        self.llm_server = url
 
     def set_temp(self, temperature):
-        self.llm.set_temp(temperature)
+        if self.llm:
+            self.llm.set_temp(temperature)
+        self.llm_temperature = temperature
 
     def set_pre_prompt(self, pre_prompt):
-        self.llm.set_pre_prompt(pre_prompt)
+        if self.llm:
+            self.llm.set_pre_prompt(pre_prompt)
+        self.llm_pre_prompt = pre_prompt
 
     async def main(self):
         await asyncio.gather(self.hardware.run())

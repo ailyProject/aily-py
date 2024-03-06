@@ -1,6 +1,6 @@
 .idea
 *.egg-info
 dist
-tests/.env
+.env
 __pycache__/
 tests/__pycache__/
