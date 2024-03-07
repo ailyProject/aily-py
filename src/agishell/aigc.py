@@ -1,16 +1,13 @@
 import asyncio
 from reactivex.subject import Subject
 from .hardwares.audio130x import AudioModule
-from .llms.llm import ChatAI
-from dotenv import load_dotenv
-
-load_dotenv()
+from .llm import LLMs
 
 
 class AIGC:
     event = Subject()
-    _hardware_event = Subject()
-    _llm_event = Subject()
+    _input_hardware_event = Subject()
+    _input_llm_event = Subject()
 
     def __init__(self, port=None, baudrate: int = 1000000):
         self.port = port
@@ -19,7 +16,6 @@ class AIGC:
         self.hardware = None
 
         self.llm = None
-        self.llm_name = "openai"
         self.llm_key = ""
         self.llm_model_name = ""
         self.llm_server = ""
@@ -29,17 +25,13 @@ class AIGC:
     def set_hardware(self, module):
         self.hardware = module
 
-    def set_llm(self, llm_name):
-        # TODO 判断llm是否在支持的列表中
-        self.llm_name = llm_name
-
-    def init(self, llm_name="openai"):
+    def init(self):
         if self.hardware is None:
-            self.hardware = AudioModule(self.port, self.baudrate, self._hardware_event)
+            self.hardware = AudioModule(self.port, self.baudrate, self._input_hardware_event)
         self.hardware.init()
         self.hardware.event.subscribe(lambda i: self.hardware_event_handler(i))
         if self.llm is None:
-            self.llm = ChatAI(llm_name, self._llm_event)
+            self.llm = LLMs(self._input_llm_event)
             self.llm.set_key(self.llm_key)
             self.llm.set_model(self.llm_model_name)
             self.llm.set_server(self.llm_server)
@@ -50,7 +42,7 @@ class AIGC:
     def hardware_event_handler(self, event):
         if event["type"] == "wakeup":
             # 监测到是唤醒，则向大模型发起唤醒事件，清空聊天记录
-            self._llm_event.on_next({"type": "wakeup", "data": ""})
+            self._input_llm_event.on_next({"type": "wakeup", "data": ""})
 
         self.event.on_next(event)
 
@@ -58,7 +50,7 @@ class AIGC:
         self.event.on_next(event)
 
     def send_message(self, content):
-        self._llm_event.on_next({"type": "invoke", "data": content})
+        self._input_llm_event.on_next({"type": "invoke", "data": content})
 
     def set_key(self, key):
         if self.llm:

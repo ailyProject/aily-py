@@ -3,10 +3,7 @@ import os
 from agishell.aigc import AIGC
 
 aigc = AIGC('COM3')
-aigc.set_key(os.getenv("OPENAI_KEY"))
-aigc.set_model("gpt-3.5-turbo")
 aigc.set_temp(0.5)
-aigc.set_server(os.getenv("OPENAI_SERVER"))
 aigc.init()
 
 

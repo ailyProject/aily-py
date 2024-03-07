@@ -7,7 +7,8 @@ dependencies = [
     "reactivex == 4.0.4",
     "loguru",
     "requests",
-    "pyserial"
+    "pyserial",
+    "openai"
 ]
 
 [build-system]

@@ -15,6 +15,7 @@ setup(
         "tiktoken == 0.6.0",
         "loguru",
         "requests",
-        "pyserial"
+        "pyserial",
+        "openai"
     ]
 )
