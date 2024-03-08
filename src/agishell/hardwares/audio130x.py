@@ -337,3 +337,6 @@ class AudioModule:
 
     def stop(self):
         self.running = False
+
+    def get_audio(self):
+        return self.decode_data

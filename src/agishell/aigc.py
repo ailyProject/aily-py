@@ -77,6 +77,9 @@ class AIGC:
             self.llm.set_pre_prompt(pre_prompt)
         self.llm_pre_prompt = pre_prompt
 
+    def play(self, data):
+        self._input_hardware_event.on_next({"type": "play", "data": data})
+
     async def main(self):
         await asyncio.gather(self.hardware.run())
 

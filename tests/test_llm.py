@@ -9,7 +9,7 @@ load_dotenv()
 class TestLLM(unittest.TestCase):
     def test_completion(self):
         client = LLMs()
-        res = client.send_message("解释下proxy的作用")
+        res = client.send_message("天气好，能干些啥")
         print(res)
 
     def test_transcription(self):
