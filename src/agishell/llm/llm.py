@@ -18,7 +18,7 @@ class LLMs:
         self.api_key = api_key if api_key else os.getenv("OPENAI_KEY")
         self.model = model if model else "gpt-3.5-turbo"
         self.temperature = temperature if temperature else 0.5
-        self.pre_prompt = pre_prompt if pre_prompt else None
+        self.pre_prompt = pre_prompt if pre_prompt else "你是智能管家，我能够回答各种问题、提供信息、解决问题，并且能够在多个领域内提供帮助"
 
         if self.aigc_event:
             self.aigc_event.subscribe(lambda i: self.event_handler(i))
