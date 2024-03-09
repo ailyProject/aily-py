@@ -3,6 +3,7 @@ import tiktoken
 
 from reactivex.subject import Subject
 from openai import OpenAI
+from loguru import logger
 
 
 class LLMs:
@@ -12,21 +13,24 @@ class LLMs:
         self.aigc_event = event
         self.chat_records = []
 
-        # self.url = url if url else os.getenv("OPENAI_URL")
-        self.url = "https://braintrustproxy.com/v1"
+        self.url = url if url else os.getenv("OPENAI_URL")
+        # self.url = "https://braintrustproxy.com/v1"
         self.api_key = api_key if api_key else os.getenv("OPENAI_KEY")
         self.model = model if model else "gpt-3.5-turbo"
         self.temperature = temperature if temperature else 0.5
         self.pre_prompt = pre_prompt if pre_prompt else None
 
-        if self.aigc_event:
-            self.aigc_event.subscribe(lambda i: self.event_handler(i))
+        # if self.aigc_event:
+        #     self.aigc_event.subscribe(lambda i: self.event_handler(i))
 
-    def event_handler(self, event):
-        if event["type"] == "wakeup":
-            self.clear_chat_records()
-        elif event["type"] == "send_message":
-            self.send_message(event["data"])
+        logger.info("url: {0}", self.url)
+        logger.info("api_key: {0}", self.api_key)
+
+    # def event_handler(self, event):
+    #     if event["type"] == "wakeup":
+    #         self.clear_chat_records()
+    #     elif event["type"] == "send_message":
+    #         self.send_message(event["data"], self.url, self.api_key)
 
     def set_key(self, key):
         self.api_key = key
@@ -94,11 +98,11 @@ class LLMs:
         messages = self.chat_records
         messages.append({"role": "user", "content": content})
 
-        self.check_conf()
+        # self.check_conf()
         client = OpenAI(base_url=self.url, api_key=self.api_key)
 
         # 开始调用事件发起
-        self.event.on_next({"type": "invoke_start", "data": ""})
+        self.event.on_next({"type": "on_invoke_start", "data": ""})
 
         messages = self.build_prompt(messages)
         response = client.chat.completions.create(
@@ -114,7 +118,7 @@ class LLMs:
         })
 
         # 结束调用事件发起
-        self.event.on_next({"type": "invoke_end", "data": response.choices[0].message.content})
+        self.event.on_next({"type": "on_invoke_end", "data": response.choices[0].message.content})
 
         return response.choices[0].message.content
 

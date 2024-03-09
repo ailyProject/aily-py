@@ -1,9 +1,12 @@
 import os
 import requests
 
+from tenacity import retry, stop_after_attempt
 
+
+@retry(stop=stop_after_attempt(5))
 def speech_to_text(filename, file, base_url=None, api_key=None):
-    url = "{0}/v1/audio/transcriptions".format(base_url if base_url else os.getenv("OPENAI_URL"))
+    url = "{0}/audio/transcriptions".format(base_url if base_url else os.getenv("OPENAI_URL"))
     files = {
         'file': (filename, file),
     }
@@ -17,5 +20,5 @@ def speech_to_text(filename, file, base_url=None, api_key=None):
 
     res = requests.post(url, data=req_data, files=files, headers=headers)
     if res.status_code != 200:
-        return None
+        raise Exception("Failed to convert speech to text: {0}".format(res.text))
     return res.text

@@ -13,6 +13,7 @@ setup(
         "aiohttp == 3.9.3",
         "reactivex == 4.0.4",
         "tiktoken == 0.6.0",
+        "tenacity == 8.2.3",
         "loguru",
         "requests",
         "pyserial",

@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-aigc = AIGC('COM3')
+aigc = AIGC('COM4')
 aigc.set_temp(0.5)
 aigc.init()
 
