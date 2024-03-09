@@ -21,11 +21,14 @@ def event_handler(event):
         aigc.send_message(text)
     elif event["type"] == "wakeup":
         print("唤醒")
-    elif event["type"] == "invoke_end":
+    elif event["type"] == "on_invoke_end":
         print("大模型调用结束")
         print("回答：{0}".format(event["data"]))
         # 文字转语音
         speech_data = text_to_speech(event["data"])
+        with open("output.mp3", "wb") as f:
+            f.write(speech_data)
+
         # 播放语音
         aigc.play(speech_data)
     else:

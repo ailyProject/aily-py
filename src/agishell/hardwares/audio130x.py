@@ -153,6 +153,7 @@ class AudioModule:
 
     def event_handler(self, event):
         if event["type"] == "play":
+            self.media_data = event["data"]
             self.state = TypeCode.NET_PLAY_START
             self.write(self.start_byte_data)
             self.media_count = 0
@@ -199,7 +200,7 @@ class AudioModule:
 
     def data_parse(self, data):
         hex_string = ' '.join(format(x, '02X') for x in data)
-        logger.debug(f'->{hex_string}')
+        # logger.debug(f'->{hex_string}')
 
         read_length = len(data)
         if read_length >= STANDARD_HEAD_LEN:

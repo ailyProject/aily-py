@@ -20,17 +20,14 @@ class LLMs:
         self.temperature = temperature if temperature else 0.5
         self.pre_prompt = pre_prompt if pre_prompt else None
 
-        # if self.aigc_event:
-        #     self.aigc_event.subscribe(lambda i: self.event_handler(i))
+        if self.aigc_event:
+            self.aigc_event.subscribe(lambda i: self.event_handler(i))
 
-        logger.info("url: {0}", self.url)
-        logger.info("api_key: {0}", self.api_key)
-
-    # def event_handler(self, event):
-    #     if event["type"] == "wakeup":
-    #         self.clear_chat_records()
-    #     elif event["type"] == "send_message":
-    #         self.send_message(event["data"], self.url, self.api_key)
+    def event_handler(self, event):
+        if event["type"] == "wakeup":
+            self.clear_chat_records()
+        elif event["type"] == "send_message":
+            self.send_message(event["data"])
 
     def set_key(self, key):
         self.api_key = key

@@ -48,8 +48,8 @@ class AIGC:
     def hardware_event_handler(self, event):
         if event["type"] == "wakeup":
             # 监测到是唤醒，则向大模型发起唤醒事件，清空聊天记录
-            # self._input_llm_event.on_next({"type": "wakeup", "data": ""})
-            self.llm.clear_chat_records()
+            self._input_llm_event.on_next({"type": "wakeup", "data": ""})
+            # self.llm.clear_chat_records()
 
         self.event.on_next(event)
 
@@ -57,8 +57,8 @@ class AIGC:
         self.event.on_next(event)
 
     def send_message(self, content):
-        # self._input_llm_event.on_next({"type": "send_message", "data": content})
-        self.llm.send_message(content)
+        self._input_llm_event.on_next({"type": "send_message", "data": content})
+        # self.llm.send_message(content)
 
     def set_key(self, key):
         if self.llm:

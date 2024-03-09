@@ -2,7 +2,7 @@ import requests
 
 
 def text_to_speech(text):
-    url = "http://101.34.93.13:7676/tts"
+    url = "http://101.34.93.13:7979/tts"
     data = {
         "content": text
     }
