@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="agishell",
-    version="1.0.0",
+    version="1.0.1",
     packages=find_packages(
         where='src',
         include=['*'],
@@ -14,6 +14,7 @@ setup(
         "reactivex == 4.0.4",
         "tiktoken == 0.6.0",
         "tenacity == 8.2.3",
+        "SpeechRecognition",
         "loguru",
         "requests",
         "pyserial",

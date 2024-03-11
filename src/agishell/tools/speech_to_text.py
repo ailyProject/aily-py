@@ -1,7 +1,30 @@
 import os
 import requests
+import speech_recognition as sr
 
+from loguru import logger
 from tenacity import retry, stop_after_attempt
+
+
+@retry(stop=stop_after_attempt(5))
+def speech_to_text_by_sr(file, key, method="azure"):
+    r = sr.Recognizer()
+    # with sr.AudioFile(file) as source:
+    #     audio = r.record(source)
+    audio_data = sr.AudioData(file, 16000, 2)
+
+    if method == "azure":
+        try:
+            res = r.recognize_azure(audio_data, key, language="zh-CN", location="eastasia")
+            return res[0]
+        except sr.UnknownValueError:
+            logger.error("Azure Speech Recognition could not understand audio")
+            return None
+        except sr.RequestError as e:
+            logger.error("Could not request results from Azure Speech Recognition service; {0}".format(e))
+            return None
+
+    return None
 
 
 @retry(stop=stop_after_attempt(5))

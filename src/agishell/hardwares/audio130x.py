@@ -86,6 +86,9 @@ class TypeCode:
     CIAS_IR_LOAD_DATA_OVER = 0x050a
     CIAS_IR_LOAD_DATA_START = 0x050b
     CIAS_CJSON_DATA = 0x0601
+    SINGLE_CONVERSATION = 0x0701
+    MANUAL_CONVERSATION = 0x0702
+    MULTI_CONVERSATION = 0x0703
 
 
 class MediaState:
@@ -114,6 +117,7 @@ class AudioModule:
         self.state = TypeCode.DEVICE_SLEEP
         # self.prev_state = TypeCode.DEVICE_SLEEP
         self.media_state = TypeCode.DEVICE_SLEEP
+        self.conversation_mode = TypeCode.MULTI_CONVERSATION
 
         self.format_string = 'IHHHHI'
         self.read_length = STANDARD_HEAD_LEN
@@ -150,9 +154,17 @@ class AudioModule:
     def init(self):
         # logger.debug(f'{self.port, self.baud}')
         self.serial = serial.Serial(self.port, self.baud, timeout=2)
+        # 初始化对话模式
+        hex_length = (self.conversation_mode.bit_length() + 1)
+        bytes_obj = self.conversation_mode.to_bytes(hex_length, byteorder='little')
+
+        self.serial.write(bytes_obj)
 
     def event_handler(self, event):
         if event["type"] == "play":
+            # 发起播放开始事件
+            # 判断当前播放事件是否已经发起
+            self.event.on_next({"type": "on_play_begin", "data": ""})
             self.media_data = event["data"]
             self.state = TypeCode.NET_PLAY_START
             self.write(self.start_byte_data)
@@ -248,10 +260,11 @@ class AudioModule:
             return
 
         # 解码音频文件
-        self.decode_data = speex_decoder(self.pcm_data)
+        # self.decode_data = speex_decoder(self.pcm_data)
 
         # 发起录音结束事件，并传出录音数据
-        self.event.on_next({"type": "on_record_end", "data": self.decode_data})
+        # self.event.on_next({"type": "on_record_end", "data": self.decode_data})
+        self.event.on_next({"type": "on_record_end", "data": self.pcm_data})
         self.lasted_event = "on_record_end"
 
         # logger.info('Pcm data to upload.')
@@ -273,12 +286,6 @@ class AudioModule:
         # self.media_read_end = MEDIA_READ_LENGTH
 
     def send_media_data(self):
-        # 发起播放开始事件
-        # 判断当前播放事件是否已经发起
-        if self.lasted_event != "on_play_begin":
-            self.event.on_next({"type": "on_play_begin", "data": ""})
-            self.lasted_event = "on_play_begin"
-
         send_data = self.media_data[self.media_read_start: self.media_read_end]
         if send_data:
             data_length = len(send_data)
@@ -294,7 +301,7 @@ class AudioModule:
             self.media_count = 0
             self.media_read_start = 0
             self.media_read_end = MEDIA_READ_LENGTH
-            logger.info('Media data send completed')
+            # logger.info('Media data send completed')
 
             # 发起播放结束事件
             self.event.on_next({"type": "on_play_end", "data": ""})
@@ -309,7 +316,7 @@ class AudioModule:
             self.send_media_data()
 
     def wakeup(self, data):
-        logger.info('DEVICE WAKE UP')
+        # logger.info('DEVICE WAKE UP')
         self.event.on_next({"type": "wakeup", "data": data})
 
     def local(self, data):
@@ -341,3 +348,13 @@ class AudioModule:
 
     def get_audio(self):
         return self.decode_data
+
+    def set_conversation_mode(self, mode):
+        if mode == "single":
+            self.conversation_mode = TypeCode.SINGLE_CONVERSATION
+        elif mode == "manual":
+            self.conversation_mode = TypeCode.MANUAL_CONVERSATION
+        elif mode == "multi":
+            self.conversation_mode = TypeCode.MULTI_CONVERSATION
+        else:
+            raise Exception("Invalid conversation mode")

@@ -10,12 +10,14 @@ class AIGC:
     _input_hardware_event = Subject()
     _input_llm_event = Subject()
 
-    def __init__(self, port=None, baudrate: int = 1000000):
+    def __init__(self, port=None, baudrate: int = 1000000, llm=None):
         self.port = port
         self.baudrate = baudrate
 
         self.hardware = None
+        self.conversation_mode = "multi"
 
+        self.custom_llm = llm
         self.llm = None
         self.llm_key = ""
         self.llm_model_name = ""
@@ -29,20 +31,26 @@ class AIGC:
     def init(self):
         if self.hardware is None:
             self.hardware = AudioModule(self.port, self.baudrate, self._input_hardware_event)
+        self.hardware.set_conversation_mode(self.conversation_mode)
         self.hardware.init()
         self.hardware.event.subscribe(lambda i: self.hardware_event_handler(i))
-        if self.llm is None:
+
+        if self.custom_llm is None:
             self.llm = LLMs(self._input_llm_event)
-            if self.llm_key:
-                self.llm.set_key(self.llm_key)
-            if self.llm_model_name:
-                self.llm.set_model(self.llm_model_name)
-            if self.llm_server:
-                self.llm.set_server(self.llm_server)
-            if self.llm_temperature:
-                self.llm.set_temp(self.llm_temperature)
-            if self.llm_pre_prompt:
-                self.llm.set_pre_prompt(self.llm_pre_prompt)
+        else:
+            self.llm = self.custom_llm(self._input_llm_event)
+
+        if self.llm_key:
+            self.llm.set_key(self.llm_key)
+        if self.llm_model_name:
+            self.llm.set_model(self.llm_model_name)
+        if self.llm_server:
+            self.llm.set_server(self.llm_server)
+        if self.llm_temperature:
+            self.llm.set_temp(self.llm_temperature)
+        if self.llm_pre_prompt:
+            self.llm.set_pre_prompt(self.llm_pre_prompt)
+
         self.llm.event.subscribe(lambda i: self.llm_event_handler(i))
 
     def hardware_event_handler(self, event):
@@ -55,6 +63,9 @@ class AIGC:
 
     def llm_event_handler(self, event):
         self.event.on_next(event)
+
+    def set_conversation_mode(self, mode):
+        self.conversation_mode = mode
 
     def send_message(self, content):
         self._input_llm_event.on_next({"type": "send_message", "data": content})
