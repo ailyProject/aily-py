@@ -9,62 +9,40 @@ from loguru import logger
 class LLMs:
     event = Subject()
 
-    def __init__(self, event=None, url=None, api_key=None, model=None, temperature=None, pre_prompt=None):
+    def __init__(self, event, url, api_key, model, pre_prompt, temperature=0.5, max_token_length=16384):
         self.aigc_event = event
         self.chat_records = []
 
-        self.url = url if url else os.getenv("OPENAI_URL")
+        self.url = url
         # self.url = "https://braintrustproxy.com/v1"
-        self.api_key = api_key if api_key else os.getenv("OPENAI_KEY")
-        self.model = model if model else "gpt-3.5-turbo"
-        self.temperature = temperature if temperature else 0.5
-        self.pre_prompt = pre_prompt if pre_prompt else "你是智能管家，我能够回答各种问题、提供信息、解决问题，并且能够在多个领域内提供帮助"
+        self.api_key = api_key
+        self.model = model
+        self.temperature = temperature
+        self.pre_prompt = pre_prompt
+        self.max_token_length = max_token_length
+        self.custom_invoke = None
 
         if self.aigc_event:
             self.aigc_event.subscribe(lambda i: self.event_handler(i))
 
     def event_handler(self, event):
-        if event["type"] == "wakeup":
-            self.clear_chat_records()
-        elif event["type"] == "send_message":
-            self.send_message(event["data"])
+        if event["type"] == "send_message":
+            self._send_message(event["data"])
+        elif event["type"] == "clear_chat_records":
+            self._clear_chat_records()
+        else:
+            logger.warning("Unknown event type: {0}".format(event["type"]))
 
-    def set_key(self, key):
-        self.api_key = key
+    def set_custom_invoke(self, custom_invoke: callable):
+        self.custom_invoke = custom_invoke
 
-    def set_model(self, model_name):
-        self.model = model_name
-
-    def set_server(self, url):
-        self.url = url
-
-    def set_temp(self, temperature):
-        self.temperature = temperature
-
-    def set_pre_prompt(self, pre_prompt):
-        self.pre_prompt = pre_prompt
-
-    def check_conf(self):
-        if not self.url:
-            raise ValueError("OpenAI URL is not set")
-        if not self.api_key:
-            raise ValueError("OpenAI API Key is not set")
-
-    def get_text_token_count(self, text):
+    @staticmethod
+    def get_text_token_count(text):
         encoding = tiktoken.get_encoding("cl100k_base")
         num_tokens = len(encoding.encode(text))
         return num_tokens
 
     def build_prompt(self, messages):
-        if self.model == "gpt-3.5-turbo":
-            max_token_length = 4096 - 1024
-        elif self.model == "gpt-3.5-turbo-1106":
-            max_token_length = 16384 - 4096
-        elif self.model == "gpt-4-1106-preview":
-            max_token_length = 127999 - 4096
-        else:
-            raise ValueError("Invalid model name")
-
         if self.pre_prompt:
             current_token_length = self.get_text_token_count(self.pre_prompt)
         else:
@@ -80,7 +58,7 @@ class LLMs:
             if "function_call" in message:
                 new_message["function_call"] = message["function_call"]
                 current_token_length += self.get_text_token_count(str(message["function_call"]))
-            if current_token_length < max_token_length:
+            if current_token_length < self.max_token_length:
                 new_messages.insert(0, new_message)
             else:
                 break
@@ -90,34 +68,45 @@ class LLMs:
 
         return new_messages
 
-    def send_message(self, content):
-        # 获取缓存聊天记录
-        messages = self.chat_records
-        messages.append({"role": "user", "content": content})
-
-        # self.check_conf()
-        client = OpenAI(base_url=self.url, api_key=self.api_key)
-
-        # 开始调用事件发起
-        self.event.on_next({"type": "on_invoke_start", "data": ""})
-
-        messages = self.build_prompt(messages)
+    @staticmethod
+    def default_invoke(url, api_key, model, temperature, messages):
+        client = OpenAI(base_url=url, api_key=api_key)
         response = client.chat.completions.create(
-            model=self.model,
+            model=model,
             messages=messages,
-            temperature=self.temperature,
+            temperature=temperature,
             stream=False
         )
 
-        self.chat_records.append({
+        return {
             "role": response.choices[0].message.role,
-            "content": response.choices[0].message.content
+            "content": response.choices[0].message.content,
+            "tool_calls": response.choices[0].message.tool_calls
+        }
+
+    def invoke(self, url, api_key, model, temperature, messages):
+        if self.custom_invoke:
+            return self.custom_invoke(url, api_key, model, temperature, messages)
+        return self.default_invoke(url, api_key, model, temperature, messages)
+
+    def _send_message(self, content):
+        # 开始调用事件发起
+        self.event.on_next({"type": "on_invoke_start", "data": ""})
+        # 获取缓存聊天记录
+        messages = self.chat_records
+        messages.append({"role": "user", "content": content})
+        messages = self.build_prompt(messages)
+        response = self.invoke(self.url, self.api_key, self.model, self.temperature, messages)
+        self.chat_records.append({
+            "role": response["role"],
+            "content": response["content"],
         })
 
+        # TODO function call处理
+
+        self.event.on_next({"type": "on_invoke_end", "data": response["content"]})
+        return response["content"]
         # 结束调用事件发起
-        self.event.on_next({"type": "on_invoke_end", "data": response.choices[0].message.content})
 
-        return response.choices[0].message.content
-
-    def clear_chat_records(self):
+    def _clear_chat_records(self):
         self.chat_records.clear()

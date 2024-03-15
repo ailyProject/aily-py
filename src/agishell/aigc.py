@@ -18,15 +18,23 @@ class AIGC:
         self.conversation_mode = "multi"
 
         self.custom_llm = llm
+        self.custom_llm_invoke = None
         self.llm = None
         self.llm_key = ""
         self.llm_model_name = ""
         self.llm_server = ""
         self.llm_temperature = 0.5
         self.llm_pre_prompt = ""
+        self.llm_max_token_length = 16384
 
     def set_hardware(self, module):
         self.hardware = module
+
+    def set_custom_llm_invoke(self, custom_invoke: callable):
+        self.custom_llm_invoke = custom_invoke
+
+    def set_custom_llm(self, module):
+        self.custom_llm = module
 
     def init(self):
         if self.hardware is None:
@@ -36,29 +44,23 @@ class AIGC:
         self.hardware.event.subscribe(lambda i: self.hardware_event_handler(i))
 
         if self.custom_llm is None:
-            self.llm = LLMs(self._input_llm_event)
+            self.llm = LLMs(
+                self._input_llm_event,
+                self.llm_server if self.llm_server else os.getenv("LLM_URL"),
+                self.llm_key if self.llm_key else os.getenv("LLM_KEY"),
+                self.llm_model_name if self.llm_model_name else "gpt-3.5-turbo",
+                self.llm_pre_prompt if self.llm_pre_prompt else os.getenv("LLM_PRE_PROMPT"),
+                self.llm_temperature if self.llm_temperature else 0.5,
+                self.llm_max_token_length if self.llm_max_token_length else 16384
+            )
+            if self.custom_llm_invoke:
+                self.llm.set_custom_invoke(self.custom_llm_invoke)
         else:
             self.llm = self.custom_llm(self._input_llm_event)
-
-        if self.llm_key:
-            self.llm.set_key(self.llm_key)
-        if self.llm_model_name:
-            self.llm.set_model(self.llm_model_name)
-        if self.llm_server:
-            self.llm.set_server(self.llm_server)
-        if self.llm_temperature:
-            self.llm.set_temp(self.llm_temperature)
-        if self.llm_pre_prompt:
-            self.llm.set_pre_prompt(self.llm_pre_prompt)
 
         self.llm.event.subscribe(lambda i: self.llm_event_handler(i))
 
     def hardware_event_handler(self, event):
-        if event["type"] == "wakeup":
-            # 监测到是唤醒，则向大模型发起唤醒事件，清空聊天记录
-            self._input_llm_event.on_next({"type": "wakeup", "data": ""})
-            # self.llm.clear_chat_records()
-
         self.event.on_next(event)
 
     def llm_event_handler(self, event):

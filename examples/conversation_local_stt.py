@@ -1,5 +1,10 @@
+"""
+零一万物
+"""
+
 import os
 import time
+import requests
 
 from agishell.aigc import AIGC
 from agishell.tools import speech_to_text_by_sr, text_to_speech, speex_decoder
@@ -7,13 +12,31 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-aigc = AIGC('COM4')
-aigc.set_key(os.getenv("OPENAI_KEY"))
-aigc.set_server(os.getenv("OPENAI_URL"))
+aigc = AIGC(os.getenv("PORT"))
+aigc.set_key(os.getenv("LLM_01KEY"))
+aigc.set_server(os.getenv("LLM_01URL"))
 aigc.set_pre_prompt(os.getenv("PRE_PROMPT"))
 aigc.set_conversation_mode("single")
+aigc.set_model("yi-34b-chat-0205")
 aigc.set_temp(0.5)
 aigc.init()
+
+
+def custom_speech_to_text(audio_file):
+    url = os.getenv("CUSTOM_STT_URL")
+
+    payload = {}
+    files = [
+        ('file', ('input.wav', audio_file, 'audio/mpeg'))
+    ]
+    headers = {}
+
+    response = requests.request("POST", url, headers=headers, data=payload, files=files)
+    if response.status_code != 200:
+        print("语音解析失败")
+        return None
+
+    return response.json()["result"]
 
 
 def event_handler(event):
@@ -27,7 +50,8 @@ def event_handler(event):
         print("解码结束: {0}".format(int(time.time())))
         # 语音转文字
         print("开始转换语音为文字: {0}".format(int(time.time())))
-        text = speech_to_text_by_sr(pcm_data, os.getenv("AZURE_KEY"))
+        # text = speech_to_text_by_sr(pcm_data, os.getenv("AZURE_KEY"))
+        text = custom_speech_to_text(pcm_data)
         print("转换语音为文字结束: {0}".format(int(time.time())))
         print("转换后的文字为: {0}".format(text))
 

@@ -1,19 +1,31 @@
+"""
+智普AI对话模型调用示例
+需要安装智普SDK: pip install zhipuai
+"""
 import os
 import time
 
 from agishell.aigc import AIGC
-from agishell.tools import speech_to_text_by_sr, text_to_speech, speex_decoder
+from zhipuai import ZhipuAI
 from dotenv import load_dotenv
+from agishell.tools import speech_to_text_by_sr, text_to_speech, speex_decoder
 
 load_dotenv()
 
-aigc = AIGC('COM4')
-aigc.set_key(os.getenv("OPENAI_KEY"))
-aigc.set_server(os.getenv("OPENAI_URL"))
-aigc.set_pre_prompt(os.getenv("PRE_PROMPT"))
-aigc.set_conversation_mode("single")
-aigc.set_temp(0.5)
-aigc.init()
+
+def custom_invoke(url, api_key, model, temperature, messages):
+    client = ZhipuAI(api_key=api_key)
+    response = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=temperature,
+    )
+
+    return {
+        "role": response.choices[0].message.role,
+        "content": response.choices[0].message.content,
+        "tool_calls": response.choices[0].message.tool_calls
+    }
 
 
 def event_handler(event):
@@ -61,5 +73,12 @@ def event_handler(event):
         print(event)
 
 
+aigc = AIGC(os.getenv("PORT"))
+aigc.set_key(os.getenv("LLM_GLM_KEY"))
+aigc.set_server(os.getenv("LLM_GLM_URL"))
+aigc.set_pre_prompt(os.getenv("PRE_PROMPT"))
+aigc.set_model("glm-4")
+aigc.set_custom_llm_invoke(custom_invoke)
+aigc.init()
 aigc.event.subscribe(lambda i: event_handler(i))
 aigc.run()

@@ -226,6 +226,9 @@ class AudioModule:
                 self.state = unpacked_data[DataHead.HEAD_TYPE]
                 if data_length > 0:
                     self.read_length = data_length
+        else:
+            if self.read_length < STANDARD_HEAD_LEN:
+                self.read_length = STANDARD_HEAD_LEN
 
     def upload(self, data):
         # self.media_state = MEDIA_PCM_SEND
@@ -323,9 +326,10 @@ class AudioModule:
         self.pcm_data = bytearray()
         # self.device.audio_upload_cancel = True
         logger.info(f'LOCAL ASR NOTIFY')
-
-        # 发起离线指令识别事件
-        self.event.on_next({"type": "on_recognition", "data": data})
+        if len(data) == 2:
+            data_int = struct.unpack('<h', data)[0]
+            # 发起离线指令识别事件
+            self.event.on_next({"type": "on_recognition", "data": data_int})
 
     def record(self, data):
         # 发起录音开始事件

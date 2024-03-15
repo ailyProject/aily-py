@@ -1,3 +1,7 @@
+"""
+零一万物
+"""
+
 import os
 import time
 
@@ -7,11 +11,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-aigc = AIGC('COM4')
-aigc.set_key(os.getenv("OPENAI_KEY"))
-aigc.set_server(os.getenv("OPENAI_URL"))
+aigc = AIGC(os.getenv("PORT"))
+aigc.set_key(os.getenv("LLM_01KEY"))
+aigc.set_server(os.getenv("LLM_01URL"))
 aigc.set_pre_prompt(os.getenv("PRE_PROMPT"))
 aigc.set_conversation_mode("single")
+aigc.set_model("yi-34b-chat-0205")
 aigc.set_temp(0.5)
 aigc.init()
 
@@ -63,3 +68,4 @@ def event_handler(event):
 
 aigc.event.subscribe(lambda i: event_handler(i))
 aigc.run()
+
