@@ -53,6 +53,9 @@ class AIGC:
         self.wait_words_data = bytearray()
         self.wait_words_voice_loop_play = True
 
+        self.invalid_words = os.getenv("INVALID_WORDS", "哎呀，我没听清楚，能再说一遍吗？")
+        self.invalid_voice = None
+
         # 获取系统类型
         if sys.platform == "win32":
             self.root_path = "D://temp"
@@ -132,6 +135,15 @@ class AIGC:
 
             logger.info("初始化等待词完成")
 
+        # 读取默认
+        if self.invalid_words:
+            if os.path.exists(self.invalid_words):
+                with open(self.invalid_words, "rb") as f:
+                    self.invalid_voice = f.read()
+            else:
+                voice = text_to_speech(self.invalid_words)
+                self.invalid_voice = voice
+
     def init(self):
         self._hardware_init()
         self._llm_init()
@@ -186,12 +198,13 @@ class AIGC:
 
     def send_message(self, content):
         if not content:
-            return
-        # 聊天记录过期清理
-        if time.time() - self.last_conversation_time > 60 * 60 * 24:
-            self.llm.clear_chat_records()
-            self.last_conversation_time = time.time()
-        self.llm_invoke_queue.put({"type": "invoke", "data": content})
+            self.play(self.invalid_voice)
+        else:
+            # 聊天记录过期清理
+            if time.time() - self.last_conversation_time > 60 * 60 * 24:
+                self.llm.clear_chat_records()
+                self.last_conversation_time = time.time()
+            self.llm_invoke_queue.put({"type": "invoke", "data": content})
 
     def set_key(self, key):
         if self.llm:

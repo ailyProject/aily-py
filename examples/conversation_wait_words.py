@@ -41,8 +41,6 @@ aigc.set_pre_prompt(os.getenv("PRE_PROMPT"))
 aigc.set_model("yi-34b-chat-0205")
 aigc.set_temp(0.5)
 aigc.set_wait_words("./robot_thinking_16k_s16le.mp3")
-# aigc.set_wwords_auto_play(False)
-
 
 aigc.on_record_end.subscribe(lambda i: record_end_handler(i))
 aigc.on_invoke_end.subscribe(lambda i: invoke_end_handler(i))
