@@ -7,31 +7,28 @@ from loguru import logger
 
 
 class LLMs:
-    event = Subject()
-
-    def __init__(self, event, url, api_key, model, pre_prompt, temperature=0.5, max_token_length=16384):
-        self.aigc_event = event
+    def __init__(self, device):
+        self.device = device
         self.chat_records = []
 
-        self.url = url
+        self.url = device.llm_server
         # self.url = "https://braintrustproxy.com/v1"
-        self.api_key = api_key
-        self.model = model
-        self.temperature = temperature
-        self.pre_prompt = pre_prompt
-        self.max_token_length = max_token_length
+        self.api_key = device.llm_key
+        self.model = device.llm_model_name
+        self.temperature = device.llm_temperature
+        self.pre_prompt = device.llm_pre_prompt
+        self.max_token_length = device.llm_max_token_length
         self.custom_invoke = None
 
-        if self.aigc_event:
-            self.aigc_event.subscribe(lambda i: self.event_handler(i))
+        self.device_event_queue = device.audio_event_queue
 
-    def event_handler(self, event):
-        if event["type"] == "send_message":
-            self._send_message(event["data"])
-        elif event["type"] == "clear_chat_records":
-            self._clear_chat_records()
-        else:
-            logger.warning("Unknown event type: {0}".format(event["type"]))
+    # def event_handler(self, event):
+    #     if event["type"] == "send_message":
+    #         self._send_message(event["data"])
+    #     elif event["type"] == "clear_chat_records":
+    #         self._clear_chat_records()
+    #     else:
+    #         logger.warning("Unknown event type: {0}".format(event["type"]))
 
     def set_custom_invoke(self, custom_invoke: callable):
         self.custom_invoke = custom_invoke
@@ -91,7 +88,8 @@ class LLMs:
 
     def _send_message(self, content):
         # 开始调用事件发起
-        self.event.on_next({"type": "on_invoke_start", "data": ""})
+        # self.event.on_next({"type": "on_invoke_start", "data": ""})
+        self.device_event_queue.put({"type": "on_invoke_start", "data": ""})
         # 获取缓存聊天记录
         messages = self.chat_records
         messages.append({"role": "user", "content": content})
@@ -104,7 +102,8 @@ class LLMs:
 
         # TODO function call处理
 
-        self.event.on_next({"type": "on_invoke_end", "data": response["content"]})
+        # self.event.on_next({"type": "on_invoke_end", "data": response["content"]})
+        self.device_event_queue.put({"type": "on_invoke_end", "data": response["content"]})
         return response["content"]
         # 结束调用事件发起
 

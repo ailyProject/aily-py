@@ -1,10 +1,12 @@
 import struct
 import asyncio
+import threading
+import time
+
 import serial
 
-from loguru import logger
-
 from reactivex.subject import Subject
+from loguru import logger
 from ..tools.speex_decoder import speex_decoder
 
 
@@ -86,9 +88,9 @@ class TypeCode:
     CIAS_IR_LOAD_DATA_OVER = 0x050a
     CIAS_IR_LOAD_DATA_START = 0x050b
     CIAS_CJSON_DATA = 0x0601
-    SINGLE_CONVERSATION = 0x0701
-    MANUAL_CONVERSATION = 0x0702
-    MULTI_CONVERSATION = 0x0703
+    CIAS_SIGNLE_WAKEUP = 0x0701
+    CIAS_PHYSICAL_WAKEUP = 0x0702
+    CIAS_CONTINUOUS_WAKEUP = 0x0703
 
 
 class MediaState:
@@ -102,22 +104,27 @@ class MediaState:
 
 MEDIA_READ_LENGTH = 1024
 STANDARD_HEAD_LEN = 16
+MAGIC_DATA = 0x5A5AA5A5
+CHECK_SUM = 0x00
 
 
-class AudioModule:
+class AudioModule(threading.Thread):
     event = Subject()
 
-    def __init__(self, port, baud, event):
-        self.aigc_event = event
-        self.port = port
-        self.baud = baud
+    def __init__(self, device):
+        super(AudioModule, self).__init__()
+        self.device = device
+        self.port = device.port
+        self.baud = device.baudrate
         self.serial = None
         self.running = True
+
+        self.audio_event_queue = device.audio_event_queue
 
         self.state = TypeCode.DEVICE_SLEEP
         # self.prev_state = TypeCode.DEVICE_SLEEP
         self.media_state = TypeCode.DEVICE_SLEEP
-        self.conversation_mode = TypeCode.MULTI_CONVERSATION
+        self.conversation_mode = TypeCode.CIAS_SIGNLE_WAKEUP
 
         self.format_string = 'IHHHHI'
         self.read_length = STANDARD_HEAD_LEN
@@ -127,12 +134,16 @@ class AudioModule:
         self.media_read_start = 0
         self.media_read_end = MEDIA_READ_LENGTH
         self.media_count = 0
+        self.process_media_data = bytes()
+
         self.cmd_action = {TypeCode.WAKE_UP: self.wakeup,
                            TypeCode.LOCAL_ASR_NOTIFY: self.local,
                            TypeCode.PCM_MIDDLE: self.record,
                            TypeCode.PCM_FINISH: self.upload,
                            TypeCode.PLAY_DATA_GET: self.media,
-                           TypeCode.PLAY_DATA_RECV: self.media}
+                           TypeCode.PLAY_DATA_RECV: self.media,
+                           TypeCode.NET_PLAY_END: self.media_end}
+
         self.lasted_event = ""
 
         start_data = 'A5 A5 5A 5A 00 00 01 02 00 00 00 00 77 56 34 12'
@@ -140,62 +151,132 @@ class AudioModule:
         end_data = 'A5 A5 5A 5A 00 00 0C 02 00 00 00 00 77 56 34 12'
         stop_data = 'A5 A5 5A 5A 00 00 0D 02 00 00 00 00 77 56 34 12'
         hex_values = start_data.split()
-        self.start_byte_data = bytes.fromhex(''.join(hex_values))
-        hex_values = head_data.split()
-        self.head_byte_data = bytearray(bytes.fromhex(''.join(hex_values)))
-        hex_values = end_data.split()
-        self.end_byte_data = bytes.fromhex(''.join(hex_values))
-        hex_values = stop_data.split()
-        self.stop_byte_data = bytes.fromhex(''.join(hex_values))
+        self.start_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.NET_PLAY_START, 0, 0,
+                                                       FillCode.MP3_FILL)
+        self.head_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.PLAY_DATA_GET, 0, 0,
+                                                      FillCode.MP3_FILL)
+        self.end_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.PLAY_DATA_END, 0, 0,
+                                                     FillCode.MP3_FILL)
+        self.stop_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.NET_PLAY_STOP, 0, 0,
+                                                      FillCode.MP3_FILL)
+        # self.single_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.CIAS_SIGNLE_WAKEUP, 0, 0,
+        #                                                 FillCode.DEF_FILL)
+
+        self.file_code = FillCode.MP3_FILL
 
         # 订阅aigc发出得事件
-        self.aigc_event.subscribe(lambda i: self.event_handler(i))
+        # self.aigc_event.subscribe(lambda i: self.event_handler(i))
+
+    def update_fill_code(self, fill_code):
+        self.start_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.NET_PLAY_START, 0, 0,
+                                                       fill_code)
+        self.head_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.PLAY_DATA_GET, 0, 0,
+                                                      fill_code)
+        self.end_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.PLAY_DATA_END, 0, 0,
+                                                     fill_code)
+        self.stop_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.NET_PLAY_STOP, 0, 0,
+                                                      fill_code)
+        self.file_code = fill_code
+
+    def protocol_head_pack(self, magic, checksum, head_type, data_len, version, fill_data):
+        head_data = bytearray(struct.pack('<I', magic))
+        head_data += bytearray(struct.pack('<H', checksum))
+        head_data += bytearray(struct.pack('<H', head_type))
+        head_data += bytearray(struct.pack('<H', data_len))
+        head_data += bytearray(struct.pack('<H', version))
+        head_data += bytearray(struct.pack('<I', fill_data))
+        return head_data
 
     def init(self):
         # logger.debug(f'{self.port, self.baud}')
         self.serial = serial.Serial(self.port, self.baud, timeout=2)
-        # 初始化对话模式
-        hex_length = (self.conversation_mode.bit_length() + 1)
-        bytes_obj = self.conversation_mode.to_bytes(hex_length, byteorder='little')
 
-        self.serial.write(bytes_obj)
+    # def event_handler(self, event):
+    #     if event["type"] == "play":
+    #         # 发起播放开始事件
+    #         # 判断当前播放事件是否已经发起
+    #         # self.event.on_next({"type": "on_play_begin", "data": ""})
+    #         self.audio_event_queue.put({"type": "on_play_begin", "data": ""})
+    #         self.media_data = event["data"]
+    #         self.state = TypeCode.NET_PLAY_START
+    #         self.write(self.start_byte_data)
+    #         self.media_count = 0
+    #         self.media_read_start = 0
+    #         self.media_read_end = MEDIA_READ_LENGTH
+    #         self.media(event["data"])
+    #     elif event["type"] == "play_wait_words":
+    #         logger.info("Play wait words, file_code: {0}".format(self.file_code))
+    #         if self.file_code != FillCode.MP3_FILL:
+    #             pass
+    #         else:
+    #             self.file_code = FillCode.MP3_FILL
+    #             self.update_fill_code(FillCode.MP3_FILL)
+    #             self.write(self.start_byte_data)
+    #             self.media_data = event["data"]
+    #             self.media_count = 0
+    #             self.media_read_start = 0
+    #             self.media_read_end = MEDIA_READ_LENGTH
+    #             self.media(event["data"])
+    #             logger.info("Play wait words end")
 
-    def event_handler(self, event):
-        if event["type"] == "play":
-            # 发起播放开始事件
-            # 判断当前播放事件是否已经发起
-            self.event.on_next({"type": "on_play_begin", "data": ""})
-            self.media_data = event["data"]
-            self.state = TypeCode.NET_PLAY_START
-            self.write(self.start_byte_data)
-            self.media_count = 0
-            self.media_read_start = 0
-            self.media_read_end = MEDIA_READ_LENGTH
-            self.media(event["data"])
-
-    async def run(self):
+    def run(self):
         logger.info('serial run')
-        while True:
-            # logger.info('test run1')
-            # time.sleep(2)
-            # audio_data = self.device.audio_download_queue.get(False)
-            # if not self.device.audio_download_queue.empty():
-            #     # print('audio download')
-            #     self.media_data = self.device.audio_download_queue.get()
-            #     # print(self.media_data)
-            #     self.write(self.start_byte_data)
-            #     # self.media_state = MEDIA_MP3_CHECK
-            #     self.media_count = 0
-            #     self.media_read_start = 0
-            #     self.media_read_end = MEDIA_READ_LENGTH
 
-            data = self.serial.read(self.read_length)
-            if len(data) < self.read_length:
-                # time.sleep(0.005)
-                # if len(data):
-                #     print(data)
-                pass
-            else:
+        # 初始化对话模式
+        if self.conversation_mode == TypeCode.CIAS_SIGNLE_WAKEUP:
+            byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.CIAS_SIGNLE_WAKEUP, 0, 0,
+                                                FillCode.DEF_FILL)
+        elif self.conversation_mode == TypeCode.CIAS_CONTINUOUS_WAKEUP:
+            byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.CIAS_CONTINUOUS_WAKEUP, 0, 0,
+                                                FillCode.DEF_FILL)
+        else:
+            byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.CIAS_PHYSICAL_WAKEUP, 0, 0,
+                                                FillCode.DEF_FILL)
+
+        self.write(byte_data)
+
+        while True:
+            if not self.device.audio_download_queue.empty():
+                event = self.device.audio_download_queue.get()
+                logger.info("Audio download event: {0}".format(event["type"]))
+                if event["type"] == "play":
+                    # 发起播放开始事件
+                    self.update_fill_code(FillCode.TTS_FILL)
+                    logger.info("开始播放tts，先停止当前播放")
+                    self.write(self.stop_byte_data)
+                    # await asyncio.sleep(0.5)
+                    logger.info("停止播放")
+                    self.media_data = event["data"]
+                    self.write(self.start_byte_data)
+                    self.media_count = 0
+                    self.media_read_start = 0
+                    self.media_read_end = MEDIA_READ_LENGTH
+                    self.media(event["data"])
+
+                    self.audio_event_queue.put({"type": "on_play_begin", "data": ""})
+                elif event["type"] == "play_wait_words":
+                    logger.info("Play wait words, file_code: {0}".format(self.file_code))
+                    if self.file_code != FillCode.MP3_FILL:
+                        pass
+                    else:
+                        self.update_fill_code(FillCode.MP3_FILL)
+                        self.write(self.start_byte_data)
+                        self.media_data = event["data"]
+                        self.media_count = 0
+                        self.media_read_start = 0
+                        self.media_read_end = MEDIA_READ_LENGTH
+                        self.media(event["data"])
+                        logger.info("Play wait words end")
+
+            # data = self.serial.read(self.read_length)
+            # if len(data) < self.read_length:
+            #     continue
+
+            if self.serial.in_waiting > 0:
+                data = self.serial.read(self.read_length)
+                if len(data) < self.read_length:
+                    continue
+
                 self.data_parse(data)
                 func = self.cmd_action.get(self.state)
                 if func:
@@ -205,15 +286,12 @@ class AudioModule:
                     hex_string = ' '.join(format(x, '02X') for x in data)
                     logger.debug(f'->{hex_string}')
 
-            await asyncio.sleep(0)
+            time.sleep(0.0001)
 
         self.serial.close()
         # await asyncio.sleep(0)
 
     def data_parse(self, data):
-        hex_string = ' '.join(format(x, '02X') for x in data)
-        # logger.debug(f'->{hex_string}')
-
         read_length = len(data)
         if read_length >= STANDARD_HEAD_LEN:
             if self.read_length > STANDARD_HEAD_LEN:
@@ -231,47 +309,11 @@ class AudioModule:
                 self.read_length = STANDARD_HEAD_LEN
 
     def upload(self, data):
-        # self.media_state = MEDIA_PCM_SEND
-        # with open('pcm_log_speex_encode.pcm', 'wb') as f:
-        #     for i in self.pcm_data:
-        #         f.write(bytes([i]))
-        # #
-        # # url = "http://101.34.93.13:7979/encoded_voice"
-        # url = "http://101.34.93.13:7676/decode"
-        # filename = 'pcm_log_speex_encode.pcm'
-        # # file = open('C:/Users/i3water/PycharmProjects/pythonProject1/PCM_TEST/pcm_log_speex_encode.pcm', 'rb')
-        # #
-        # # # asyncio.run(speex_decode(url, filename, file))
-        # payload = {}
-        # files = [
-        #     ('file',
-        #      ('pcm_log_speex_encode.pcm',
-        #       self.pcm_data,
-        #       # open('C:/Users/i3water/PycharmProjects/pythonProject1/PCM_TEST/pcm_log_speex_encode.pcm', 'rb'),
-        #       'application/octet-stream'))
-        # ]
-        # headers = {}
-        #
-        # response = requests.request("POST", url, headers=headers, data=payload, files=files)
-
-        # with open('pcm_log_speex_decode.mp3', 'wb') as f:
-        #     f.write(response.content)
-        # self.media_data = response.content
-        # print(response.text)
         if not len(self.pcm_data):
-            logger.info('None pcm data to upload.')
             return
 
-        # 解码音频文件
-        # self.decode_data = speex_decoder(self.pcm_data)
+        logger.info('Pcm data to upload.')
 
-        # 发起录音结束事件，并传出录音数据
-        # self.event.on_next({"type": "on_record_end", "data": self.decode_data})
-        self.event.on_next({"type": "on_record_end", "data": self.pcm_data})
-        self.lasted_event = "on_record_end"
-
-        # logger.info('Pcm data to upload.')
-        #
         # self.device.audio_upload_queue.put(self.pcm_data)
 
         # with open('greatest_16k_s16le.mp3', 'rb') as file:
@@ -279,9 +321,14 @@ class AudioModule:
         #
         # print('media mp3 get')
 
+        self.device.audio_event_queue.put({"type": "on_record_end", "data": self.pcm_data})
+
         self.pcm_data = bytearray()
-        # # self.media_state = MEDIA_MP3_GET
+        self.file_code = FillCode.MP3_FILL
+
+        # self.media_data = self.process_media_data
         #
+        # self.update_fill_code(FillCode.MP3_FILL)
         # self.write(self.start_byte_data)
         # # self.media_state = MEDIA_MP3_CHECK
         # self.media_count = 0
@@ -304,11 +351,11 @@ class AudioModule:
             self.media_count = 0
             self.media_read_start = 0
             self.media_read_end = MEDIA_READ_LENGTH
-            # logger.info('Media data send completed')
+            logger.info('Media data send completed')
 
             # 发起播放结束事件
-            self.event.on_next({"type": "on_play_end", "data": ""})
-            self.lasted_event = "on_play_end"
+            # self.event.on_next({"type": "on_play_end", "data": ""})
+            # self.audio_event_queue.put({"type": "on_play_end", "data": ""})
 
     def media(self, data):
         if self.media_count == 0:
@@ -318,27 +365,41 @@ class AudioModule:
         else:
             self.send_media_data()
 
+    def media_end(self, data):
+        time.sleep(0.0001)
+        if self.file_code == FillCode.MP3_FILL:
+            self.write(self.start_byte_data)
+            # self.media_state = MEDIA_MP3_CHECK
+            self.media_count = 0
+            self.media_read_start = 0
+            self.media_read_end = MEDIA_READ_LENGTH
+
     def wakeup(self, data):
-        # logger.info('DEVICE WAKE UP')
-        self.event.on_next({"type": "wakeup", "data": data})
+        self.pcm_data = bytearray()
+        logger.info('DEVICE WAKE UP')
+        # self.event.on_next({"type": "wakeup", "data": data})
+        self.audio_event_queue.put({"type": "wakeup", "data": data})
 
     def local(self, data):
         self.pcm_data = bytearray()
-        # self.device.audio_upload_cancel = True
+        self.device.audio_upload_cancel = True
         logger.info(f'LOCAL ASR NOTIFY')
         if len(data) == 2:
             data_int = struct.unpack('<h', data)[0]
+            logger.info(f'LOCAL ASR NOTIFY: {data_int}')
             # 发起离线指令识别事件
-            self.event.on_next({"type": "on_recognition", "data": data_int})
+            # self.event.on_next({"type": "on_recognition", "data": data_int})
+            self.audio_event_queue.put({"type": "on_recognition", "data": data_int})
 
     def record(self, data):
         # 发起录音开始事件
         # 判断当前录音事件是否已经发起
         if self.lasted_event != "on_record_begin":
-            self.event.on_next({"type": "on_record_begin", "data": ""})
+            # self.event.on_next({"type": "on_record_begin", "data": ""})
+            self.audio_event_queue.put({"type": "on_record_begin", "data": ""})
             self.lasted_event = "on_record_begin"
 
-        # self.device.audio_upload_cancel = False
+        self.device.audio_upload_cancel = False
         if len(data) > STANDARD_HEAD_LEN:
             self.pcm_data += bytearray(data)
 
@@ -355,10 +416,10 @@ class AudioModule:
 
     def set_conversation_mode(self, mode):
         if mode == "single":
-            self.conversation_mode = TypeCode.SINGLE_CONVERSATION
+            self.conversation_mode = TypeCode.CIAS_SIGNLE_WAKEUP
         elif mode == "manual":
-            self.conversation_mode = TypeCode.MANUAL_CONVERSATION
+            self.conversation_mode = TypeCode.CIAS_PHYSICAL_WAKEUP
         elif mode == "multi":
-            self.conversation_mode = TypeCode.MULTI_CONVERSATION
+            self.conversation_mode = TypeCode.CIAS_CONTINUOUS_WAKEUP
         else:
             raise Exception("Invalid conversation mode")
