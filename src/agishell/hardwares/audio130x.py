@@ -119,7 +119,7 @@ class AudioModule(threading.Thread):
         self.serial = None
         self.running = True
 
-        self.audio_event_queue = device.audio_event_queue
+        self.audio_event_queue = device.event_queue
 
         self.state = TypeCode.DEVICE_SLEEP
         # self.prev_state = TypeCode.DEVICE_SLEEP
@@ -191,34 +191,6 @@ class AudioModule(threading.Thread):
         # logger.debug(f'{self.port, self.baud}')
         self.serial = serial.Serial(self.port, self.baud, timeout=2)
 
-    # def event_handler(self, event):
-    #     if event["type"] == "play":
-    #         # 发起播放开始事件
-    #         # 判断当前播放事件是否已经发起
-    #         # self.event.on_next({"type": "on_play_begin", "data": ""})
-    #         self.audio_event_queue.put({"type": "on_play_begin", "data": ""})
-    #         self.media_data = event["data"]
-    #         self.state = TypeCode.NET_PLAY_START
-    #         self.write(self.start_byte_data)
-    #         self.media_count = 0
-    #         self.media_read_start = 0
-    #         self.media_read_end = MEDIA_READ_LENGTH
-    #         self.media(event["data"])
-    #     elif event["type"] == "play_wait_words":
-    #         logger.info("Play wait words, file_code: {0}".format(self.file_code))
-    #         if self.file_code != FillCode.MP3_FILL:
-    #             pass
-    #         else:
-    #             self.file_code = FillCode.MP3_FILL
-    #             self.update_fill_code(FillCode.MP3_FILL)
-    #             self.write(self.start_byte_data)
-    #             self.media_data = event["data"]
-    #             self.media_count = 0
-    #             self.media_read_start = 0
-    #             self.media_read_end = MEDIA_READ_LENGTH
-    #             self.media(event["data"])
-    #             logger.info("Play wait words end")
-
     def run(self):
         logger.info('serial run')
 
@@ -236,8 +208,8 @@ class AudioModule(threading.Thread):
         self.write(byte_data)
 
         while True:
-            if not self.device.audio_download_queue.empty():
-                event = self.device.audio_download_queue.get()
+            if not self.device.audio_playlist_queue.empty():
+                event = self.device.audio_playlist_queue.get()
                 logger.info("Audio download event: {0}".format(event["type"]))
                 if event["type"] == "play":
                     # 发起播放开始事件
@@ -267,10 +239,6 @@ class AudioModule(threading.Thread):
                         self.media_read_end = MEDIA_READ_LENGTH
                         self.media(event["data"])
                         logger.info("Play wait words end")
-
-            # data = self.serial.read(self.read_length)
-            # if len(data) < self.read_length:
-            #     continue
 
             if self.serial.in_waiting > 0:
                 data = self.serial.read(self.read_length)
@@ -321,7 +289,7 @@ class AudioModule(threading.Thread):
         #
         # print('media mp3 get')
 
-        self.device.audio_event_queue.put({"type": "on_record_end", "data": self.pcm_data})
+        self.device.event_queue.put({"type": "on_record_end", "data": self.pcm_data})
 
         self.pcm_data = bytearray()
         self.file_code = FillCode.MP3_FILL
@@ -355,7 +323,7 @@ class AudioModule(threading.Thread):
 
             # 发起播放结束事件
             # self.event.on_next({"type": "on_play_end", "data": ""})
-            # self.audio_event_queue.put({"type": "on_play_end", "data": ""})
+            # self.event_queue.put({"type": "on_play_end", "data": ""})
 
     def media(self, data):
         if self.media_count == 0:
@@ -376,8 +344,6 @@ class AudioModule(threading.Thread):
 
     def wakeup(self, data):
         self.pcm_data = bytearray()
-        logger.info('DEVICE WAKE UP')
-        # self.event.on_next({"type": "wakeup", "data": data})
         self.audio_event_queue.put({"type": "wakeup", "data": data})
 
     def local(self, data):

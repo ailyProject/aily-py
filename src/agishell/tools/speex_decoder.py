@@ -3,8 +3,8 @@ import requests
 
 # TODO 看是否能本地实现
 
-def speex_decoder(file_content):
-    url = "http://101.34.93.13:7676/decode"
+def speex_decoder(file_content, result_type="mp3"):
+    url = "http://101.34.93.13:7676/decode?resultType={0}".format(result_type)
 
     files = [
         ('file',

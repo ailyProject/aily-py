@@ -1,17 +1,31 @@
 """
-零一万物
-1. 复制目录下的.env_sample为.env
-2. 配置.env中的相关参数（大模型使用零一万勿，语音转文字使用Azure)
+智普AI对话模型调用示例
+需要安装智普SDK: pip install zhipuai
 """
-
 import os
 import time
 
 from agishell import AIGC
-from agishell.tools import speech_to_text_by_sr, text_to_speech, speex_decoder
+from zhipuai import ZhipuAI
 from dotenv import load_dotenv
+from agishell.tools import speech_to_text_by_sr, text_to_speech, speex_decoder
 
 load_dotenv()
+
+
+def custom_invoke(**kwargs):
+    client = ZhipuAI(api_key=kwargs["api_key"])
+    response = client.chat.completions.create(
+        model=kwargs["model"],
+        messages=kwargs["messages"],
+        temperature=kwargs["temperature"],
+    )
+
+    return {
+        "role": response.choices[0].message.role,
+        "content": response.choices[0].message.content,
+        "tool_calls": response.choices[0].message.tool_calls
+    }
 
 
 def record_end_handler(data):
@@ -33,9 +47,11 @@ def invoke_end_handler(data):
 
 
 aigc = AIGC(os.getenv("PORT"))
-aigc.set_key(os.getenv("LLM_01KEY"))
-aigc.set_server(os.getenv("LLM_01URL"))
-aigc.set_model("yi-34b-chat-0205")
+aigc.set_key(os.getenv("LLM_GLM_KEY"))
+aigc.set_server(os.getenv("LLM_GLM_URL"))
+aigc.set_model("glm-4")
+aigc.set_custom_llm_invoke(custom_invoke)
+
 aigc.on_record_end.subscribe(lambda i: record_end_handler(i))
 aigc.on_invoke_end.subscribe(lambda i: invoke_end_handler(i))
 aigc.run()

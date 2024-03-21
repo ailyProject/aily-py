@@ -13,38 +13,45 @@ from .tools import text_to_speech
 
 
 class AIGC:
-    event = Subject()
-    _input_hardware_event = Subject()
-    _input_llm_event = Subject()
+    # 事件
+    wakeup = Subject()
+    on_record_begin = Subject()
+    on_record_end = Subject()
+    on_play_begin = Subject()
+    on_play_end = Subject()
+    on_recognition = Subject()
+    on_direction = Subject()
+    on_invoke_start = Subject()
+    on_invoke_end = Subject()
 
-    def __init__(self, port=None, baudrate: int = 1000000, llm=None):
+    audio_playlist_queue = SimpleQueue()
+    llm_invoke_queue = SimpleQueue()
+    event_queue = SimpleQueue()
+
+    def __init__(self, port=None, baudrate: int = 1000000):
         self.port = port
         self.baudrate = baudrate
 
         self.hardware = None
         self.conversation_mode = "multi"
 
-        self.audio_upload_queue = SimpleQueue()
-        self.audio_download_queue = SimpleQueue()
-        self.audio_event_queue = SimpleQueue()
-
         self.audio_upload_cancel = False
 
-        self.custom_llm = llm
         self.custom_llm_invoke = None
         self.llm = None
-        self.llm_key = ""
-        self.llm_model_name = ""
-        self.llm_server = ""
-        self.llm_temperature = 0.5
-        self.llm_pre_prompt = ""
-        self.llm_max_token_length = 16384
+        self.llm_key = os.getenv("LLM_KEY")
+        self.llm_model_name = os.getenv("LLM_MODEL_NAME", "gpt-3.5-turbo")
+        self.llm_server = os.getenv("LLM_URL")
+        self.llm_temperature = os.getenv("LLM_TEMPERATURE", 0.5)
+        self.llm_pre_prompt = os.getenv("LLM_PRE_PROMPT")
+        self.llm_max_token_length = os.getenv("LLM_MAX_TOKEN_LENGTH", 16384)
 
         self.wait_words_list = []
         self.wait_words_voice_list = []
         self.wait_words_init = True
         self.wait_words_voice_auto_play = True
         self.wait_words_data = bytearray()
+        self.wait_words_voice_loop_play = True
 
         # 获取系统类型
         if sys.platform == "win32":
@@ -54,6 +61,11 @@ class AIGC:
 
         self.wait_words_voice_path = self.root_path + "/wait_words_voice"
 
+        # 最后对话时间
+        self.last_conversation_time = 0
+        # 聊天记录有效时间
+        self.conversation_expired_at = 5 * 60
+
     def set_hardware(self, module):
         self.hardware = module
 
@@ -62,9 +74,6 @@ class AIGC:
 
     def set_custom_llm_invoke(self, custom_invoke: callable):
         self.custom_llm_invoke = custom_invoke
-
-    def set_custom_llm(self, module):
-        self.custom_llm = module
 
     def clear_wait_words(self):
         self.wait_words_list.clear()
@@ -85,20 +94,21 @@ class AIGC:
     def set_wwords_auto_play(self, auto_play: bool):
         self.wait_words_voice_auto_play = auto_play
 
-    def init(self):
+    def set_expired_time(self, expired_time: int):
+        self.conversation_expired_at = expired_time
+
+    def _hardware_init(self):
         if self.hardware is None:
             self.hardware = AudioModule(self)
         self.hardware.set_conversation_mode(self.conversation_mode)
         self.hardware.init()
-        # self.hardware.event.subscribe(lambda i: self.hardware_event_handler(i))
 
-        if self.custom_llm is None:
-            self.llm = LLMs(self)
-            if self.custom_llm_invoke:
-                self.llm.set_custom_invoke(self.custom_llm_invoke)
-        else:
-            self.llm = self.custom_llm(self._input_llm_event)
+    def _llm_init(self):
+        self.llm = LLMs(self)
+        if self.custom_llm_invoke:
+            self.llm.set_custom_invoke(self.custom_llm_invoke)
 
+    def _init(self):
         # 初始化等待词
         if self.wait_words_list:
             logger.info("初始化等待词...")
@@ -122,30 +132,47 @@ class AIGC:
 
             logger.info("初始化等待词完成")
 
-    def hardware_event_handler(self, event):
-        if event["type"] == "on_record_end":
-            if self.wait_words_voice_auto_play:
-                logger.info('on_record_end.')
-                self._auto_play_wait_words()
-        self.event.on_next(event)
-
-    def llm_event_handler(self, event):
-        self.event.on_next(event)
+    def init(self):
+        self._hardware_init()
+        self._llm_init()
+        self._init()
 
     def msg_handler(self):
         while True:
-            data = self.audio_event_queue.get()
-            if self.audio_upload_cancel:
-                logger.info("取消上传")
+            if self.event_queue.empty():
+                time.sleep(0.0001)
+                continue
+
+            event = self.event_queue.get()
+            if event["type"] == "wakeup":
+                self.wakeup.on_next(event["data"])
+            elif event["type"] == "on_record_begin":
+                self.on_record_begin.on_next(event["data"])
+            elif event["type"] == "on_record_end":
+                # 播放等待音频
+                if self.wait_words_voice_auto_play:
+                    self._auto_play_wait_words()
+                self.on_record_end.on_next(event["data"])
+            elif event["type"] == "on_play_begin":
+                self.on_play_begin.on_next(event["data"])
+            elif event["type"] == "on_play_end":
+                self.on_play_end.on_next(event["data"])
+            elif event["type"] == "on_recognition":
+                self.on_recognition.on_next(event["data"])
+            elif event["type"] == "on_direction":
+                self.on_direction.on_next(event["data"])
+            elif event["type"] == "on_invoke_start":
+                self.on_invoke_start.on_next(event["data"])
+            elif event["type"] == "on_invoke_end":
+                self.on_invoke_end.on_next(event["data"])
             else:
-                self.hardware_event_handler(data)
+                pass
 
     def set_conversation_mode(self, mode):
         self.conversation_mode = mode
 
     def play_wait_words(self, data):
-        # self._input_hardware_event.on_next({"type": "play_wait_words", "data": data})
-        self.audio_download_queue.put({"type": "play_wait_words", "data": data})
+        self.audio_playlist_queue.put({"type": "play_wait_words", "data": data})
 
     def _auto_play_wait_words(self):
         if self.wait_words_voice_list:
@@ -158,8 +185,13 @@ class AIGC:
             logger.warning("未设置等待词")
 
     def send_message(self, content):
-        # self._input_llm_event.on_next({"type": "send_message", "data": content})
-        self.llm._send_message(content)
+        if not content:
+            return
+        # 聊天记录过期清理
+        if time.time() - self.last_conversation_time > 60 * 60 * 24:
+            self.llm.clear_chat_records()
+            self.last_conversation_time = time.time()
+        self.llm_invoke_queue.put({"type": "invoke", "data": content})
 
     def set_key(self, key):
         if self.llm:
@@ -187,13 +219,13 @@ class AIGC:
         self.llm_pre_prompt = pre_prompt
 
     def play(self, data):
-        # self._input_hardware_event.on_next({"type": "play", "data": data})
-        self.audio_download_queue.put({"type": "play", "data": data})
+        self.audio_playlist_queue.put({"type": "play", "data": data})
 
     async def main(self):
         self.init()
         tasks = [
             threading.Thread(target=self.msg_handler, daemon=True),
+            threading.Thread(target=self.llm.run, daemon=True),
         ]
         self.hardware.start()
         for task in tasks:

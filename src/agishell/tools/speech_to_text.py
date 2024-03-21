@@ -7,7 +7,7 @@ from tenacity import retry, stop_after_attempt
 
 
 @retry(stop=stop_after_attempt(5))
-def speech_to_text_by_sr(file, key, method="azure"):
+def speech_to_text_by_sr(file, key, method="azure", language="zh-CN", location="eastasia"):
     r = sr.Recognizer()
     # with sr.AudioFile(file) as source:
     #     audio = r.record(source)
@@ -15,7 +15,7 @@ def speech_to_text_by_sr(file, key, method="azure"):
 
     if method == "azure":
         try:
-            res = r.recognize_azure(audio_data, key, language="zh-CN", location="eastasia")
+            res = r.recognize_azure(audio_data, key, language=language, location=location)
             return res[0]
         except sr.UnknownValueError:
             logger.error("Azure Speech Recognition could not understand audio")
@@ -29,7 +29,7 @@ def speech_to_text_by_sr(file, key, method="azure"):
 
 @retry(stop=stop_after_attempt(5))
 def speech_to_text(filename, file, base_url=None, api_key=None):
-    url = "{0}/audio/transcriptions".format(base_url if base_url else os.getenv("OPENAI_URL"))
+    url = "{0}/audio/transcriptions".format(base_url if base_url else os.getenv("LLM_URL"))
     files = {
         'file': (filename, file),
     }
@@ -38,7 +38,7 @@ def speech_to_text(filename, file, base_url=None, api_key=None):
     }
 
     headers = {
-        'Authorization': 'Bearer {0}'.format(api_key if api_key else os.getenv("OPENAI_KEY")),
+        'Authorization': 'Bearer {0}'.format(api_key if api_key else os.getenv("LLM_KEY")),
     }
 
     res = requests.post(url, data=req_data, files=files, headers=headers)

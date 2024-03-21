@@ -4,6 +4,4 @@ dist
 .env
 __pycache__/
 tests/__pycache__/
-*.mp3
-*.wav
 build
