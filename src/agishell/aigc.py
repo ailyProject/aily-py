@@ -238,7 +238,7 @@ class AIGC:
         self.llm_pre_prompt = pre_prompt
 
     def play(self, data):
-        self.audio_playlist_queue.put({"type": "play", "data": data})
+        self.audio_playlist_queue.put({"type": "play_tts", "data": data})
 
     async def main(self):
         self.init()
