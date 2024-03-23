@@ -110,13 +110,26 @@ aigc.set_custom_llm_invoke("custom_invoke")
     - location: 位置，默认"eastasia"
 
 ### 文字转语音(text_to_speech)
+> 使用的是edge-tts: https://github.com/rany2/edge-tts
 
 - 参数说明
     - text: 文字
     - voice: 语音类型，默认"zh-CN-XiaoxiaoNeural"
-- 语音类型
-    - zh-CN-XiaoxiaoNeural
-    -
+  - 语音类型
+    - zh-CN-XiaoxiaoNeural 
+    - zh-CN-XiaoyiNeural 
+    - zh-CN-YunjianNeural 
+    - zh-CN-YunxiNeural 
+    - zh-CN-YunxiaNeural 
+    - zh-CN-YunyangNeural 
+    - zh-CN-liaoning-XiaobeiNeural 
+    - zh-CN-shaanxi-XiaoniNeural 
+    - zh-HK-HiuGaaiNeural 
+    - zh-HK-HiuMaanNeural 
+    - zh-HK-WanLungNeural 
+    - zh-TW-HsiaoChenNeural 
+    - zh-TW-HsiaoYuNeural 
+    - zh-TW-YunJheNeural
 
 ## 自定义
 
