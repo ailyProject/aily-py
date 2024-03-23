@@ -186,6 +186,12 @@ class AIGC:
     def play_wait_words(self, data):
         self.audio_playlist_queue.put({"type": "play_wait_words", "data": data})
 
+    def play_invalid_words(self):
+        if self.invalid_voice:
+            self.audio_playlist_queue.put({"type": "play_mp3", "data": self.invalid_voice})
+        else:
+            logger.warning("未设置无效词")
+
     def _auto_play_wait_words(self):
         if self.wait_words_voice_list:
             words_index = random.randint(0, len(self.wait_words_voice_list) - 1)
@@ -198,7 +204,7 @@ class AIGC:
 
     def send_message(self, content):
         if not content:
-            self.play(self.invalid_voice)
+            self.play_invalid_words()
         else:
             # 聊天记录过期清理
             if time.time() - self.last_conversation_time > 60 * 60 * 24:

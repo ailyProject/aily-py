@@ -211,7 +211,7 @@ class AudioModule(threading.Thread):
             if not self.device.audio_playlist_queue.empty():
                 event = self.device.audio_playlist_queue.get()
                 logger.info("Audio download event: {0}".format(event["type"]))
-                if event["type"] == "play":
+                if event["type"] == "play_tts":
                     # 发起播放开始事件
                     self.update_fill_code(FillCode.TTS_FILL)
                     logger.info("开始播放tts，先停止当前播放")
@@ -226,12 +226,25 @@ class AudioModule(threading.Thread):
                     self.media(event["data"])
 
                     self.audio_event_queue.put({"type": "on_play_begin", "data": ""})
+                elif event["type"] == "play_mp3":
+                    if self.file_code != FillCode.MP3_FILL:
+                        pass
+                    else:
+                        self.update_fill_code(FillCode.MP3_FILL)
+                        self.write(self.stop_byte_data)
+                        self.write(self.start_byte_data)
+                        self.media_data = event["data"]
+                        self.media_count = 0
+                        self.media_read_start = 0
+                        self.media_read_end = MEDIA_READ_LENGTH
+                        self.media(event["data"])
                 elif event["type"] == "play_wait_words":
                     logger.info("Play wait words, file_code: {0}".format(self.file_code))
                     if self.file_code != FillCode.MP3_FILL:
                         pass
                     else:
                         self.update_fill_code(FillCode.MP3_FILL)
+                        self.write(self.stop_byte_data)
                         self.write(self.start_byte_data)
                         self.media_data = event["data"]
                         self.media_count = 0
@@ -334,13 +347,13 @@ class AudioModule(threading.Thread):
             self.send_media_data()
 
     def media_end(self, data):
-        time.sleep(0.0001)
         if self.file_code == FillCode.MP3_FILL:
-            self.write(self.start_byte_data)
-            # self.media_state = MEDIA_MP3_CHECK
-            self.media_count = 0
-            self.media_read_start = 0
-            self.media_read_end = MEDIA_READ_LENGTH
+            if self.device.wait_words_voice_loop_play:
+                self.update_fill_code(FillCode.MP3_FILL)
+                self.write(self.start_byte_data)
+                self.media_count = 0
+                self.media_read_start = 0
+                self.media_read_end = MEDIA_READ_LENGTH
 
     def wakeup(self, data):
         self.pcm_data = bytearray()

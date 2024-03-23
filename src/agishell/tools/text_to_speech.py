@@ -1,10 +1,11 @@
 import requests
 
 
-def text_to_speech(text):
+def text_to_speech(text, voice="zh-CN-XiaoxiaoNeural"):
     url = "http://101.34.93.13:7979/tts"
     data = {
-        "content": text
+        "content": text,
+        "voice": voice
     }
 
     response = requests.request("POST", url, json=data)
