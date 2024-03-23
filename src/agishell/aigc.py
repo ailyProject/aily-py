@@ -53,7 +53,7 @@ class AIGC:
         self.wait_words_data = bytearray()
         self.wait_words_voice_loop_play = True
 
-        self.invalid_words = os.getenv("INVALID_WORDS", "哎呀，我没听清楚，能再说一遍吗？")
+        self.invalid_words = os.getenv("INVALID_WORDS")
         self.invalid_voice = None
 
         # 获取系统类型
