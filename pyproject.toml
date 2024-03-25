@@ -1,6 +1,6 @@
 [project]
 name = "agishell"
-version = "1.0.4-beta"
+version = "1.0.5"
 dependencies = [
     "python-dotenv == 1.0.1",
     "aiohttp == 3.9.3",

@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="agishell",
-    version="1.0.4-beta",
+    version="1.0.5",
     packages=find_packages(
         where='src',
         include=['*'],
