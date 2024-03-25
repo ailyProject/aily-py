@@ -51,7 +51,7 @@ class AIGC:
         self.wait_words_init = True
         self.wait_words_voice_auto_play = True
         self.wait_words_data = bytearray()
-        self.wait_words_voice_loop_play = True
+        self.wait_words_voice_loop_play = False
 
         self.invalid_words = os.getenv("INVALID_WORDS")
         self.invalid_voice = None
