@@ -97,6 +97,9 @@ class AIGC:
     def set_wwords_auto_play(self, auto_play: bool):
         self.wait_words_voice_auto_play = auto_play
 
+    def set_wwords_loop_play(self, loop_play: bool):
+        self.wait_words_voice_loop_play = loop_play
+
     def set_expired_time(self, expired_time: int):
         self.conversation_expired_at = expired_time
 

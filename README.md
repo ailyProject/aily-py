@@ -69,8 +69,10 @@ aigc.set_pre_prompt("pre_prompt")
 aigc.set_temperature("temperature")
 # 设置等待词（可设置文字或音频文件路径）
 aigc.set_wait_word("wait_word")
+# 设置等待词是否自动播放
+aigc.set_wwords_auto_play(True)
 # 设置等待词是否循环播放
-aigc.set_wwords_auto_play("wait_word_loop")
+aigc.set_wwords_loop_play(True)
 # 发送消息到LLM
 aigc.send_message("message")
 # 设置自定义模型调用
