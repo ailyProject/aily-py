@@ -5,8 +5,8 @@
 import os
 import time
 
-from agishell.aigc import AIGC
-from agishell.tools import speech_to_text_by_sr, text_to_speech, speex_decoder
+from aily.aigc import AIGC
+from aily.tools import speech_to_text_by_sr, text_to_speech, speex_decoder
 from dotenv import load_dotenv
 
 load_dotenv()

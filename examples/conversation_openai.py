@@ -5,8 +5,8 @@
 """
 
 import os
-from agishell import AIGC
-from agishell.tools import speech_to_text, text_to_speech, speex_decoder
+from aily import AIGC
+from aily.tools import speech_to_text, text_to_speech, speex_decoder
 from dotenv import load_dotenv
 
 load_dotenv()
