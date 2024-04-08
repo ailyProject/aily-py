@@ -1,8 +1,8 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="aily",
-    version="1.0.0",
+    name="aily-py",
+    version="1.0.1",
     packages=find_packages(
         where='src',
         include=['*'],

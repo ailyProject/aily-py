@@ -3,7 +3,7 @@
 ## 安装
 
 ```
-pip install aily
+pip install aily-py
 ```
 
 ## 快速开始
