@@ -7,6 +7,7 @@ import time
 from reactivex.subject import Subject
 from loguru import logger
 from queue import SimpleQueue
+from dotenv import load_dotenv
 from .hardwares.audio130x import AudioModule
 from .llm import LLMs
 from .tools import text_to_speech
@@ -27,20 +28,29 @@ class AIGC:
     audio_playlist_queue = SimpleQueue()
     llm_invoke_queue = SimpleQueue()
     event_queue = SimpleQueue()
+    
+    @staticmethod
+    def load_config(env_file: str):
+        if not load_dotenv(dotenv_path=env_file, override=True):
+            raise RuntimeError("Failed to load the configuration file")
+        logger.info("Configuration file loaded successfully")
+        logger.info("model: {0}".format(os.getenv("LLM_MODEL")))
 
-    def __init__(self, port=None, baudrate: int = 1000000):
-        self.port = port
-        self.baudrate = baudrate
+    def __init__(self, env_file: str):
+        self.load_config(env_file)
+        
+        self.port = os.getenv("PORT")
+        self.baudrate = os.getenv("BAUDRATE")
 
         self.hardware = None
-        self.conversation_mode = "multi"
+        self.conversation_mode = os.getenv("CONVERSATION_MODE")
 
         self.audio_upload_cancel = False
 
         self.custom_llm_invoke = None
         self.llm = None
         self.llm_key = os.getenv("LLM_KEY")
-        self.llm_model_name = os.getenv("LLM_MODEL_NAME", "gpt-3.5-turbo")
+        self.llm_model_name = os.getenv("LLM_MODEL", "gpt-3.5-turbo")
         self.llm_server = os.getenv("LLM_URL")
         self.llm_temperature = os.getenv("LLM_TEMPERATURE", 0.5)
         self.llm_pre_prompt = os.getenv("LLM_PRE_PROMPT")
@@ -51,7 +61,7 @@ class AIGC:
         self.wait_words_init = True
         self.wait_words_voice_auto_play = True
         self.wait_words_data = bytearray()
-        self.wait_words_voice_loop_play = False
+        self.wait_words_voice_loop_play = os.getenv("WAIT_WORDS_LOOP_PLAY", False)
 
         self.invalid_words = os.getenv("INVALID_WORDS")
         self.invalid_voice = None
@@ -117,7 +127,7 @@ class AIGC:
     def _init(self):
         # 初始化等待词
         if self.wait_words_list:
-            logger.info("初始化等待词...")
+            logger.info("Initializing wait words...")
 
             for words in self.wait_words_list:
                 # 判断是纯文本还是语音文件地址
@@ -136,7 +146,7 @@ class AIGC:
                     #     f.write(speech_data)
                     # self.wait_words_voice_list.append(save_path)
 
-            logger.info("初始化等待词完成")
+            logger.info("Wait words initialization completed")
 
         # 读取默认
         if self.invalid_words:
@@ -193,7 +203,7 @@ class AIGC:
         if self.invalid_voice:
             self.audio_playlist_queue.put({"type": "play_mp3", "data": self.invalid_voice})
         else:
-            logger.warning("未设置无效词")
+            logger.warning("Invalid words not set")
 
     def _auto_play_wait_words(self):
         if self.wait_words_voice_list:
@@ -203,7 +213,7 @@ class AIGC:
             #     data = f.read()
             # self.play_wait_words(data)
         else:
-            logger.warning("未设置等待词")
+            logger.warning("Wait words not set")
 
     def send_message(self, content):
         if not content:
