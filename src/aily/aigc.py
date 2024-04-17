@@ -6,7 +6,7 @@ import threading
 import time
 from reactivex.subject import Subject
 from loguru import logger
-from queue import SimpleQueue
+from queue import Queue
 from dotenv import load_dotenv
 from .hardwares.audio130x import AudioModule
 from .llm import LLMs
@@ -25,9 +25,9 @@ class AIGC:
     on_invoke_start = Subject()
     on_invoke_end = Subject()
 
-    audio_playlist_queue = SimpleQueue()
-    llm_invoke_queue = SimpleQueue()
-    event_queue = SimpleQueue()
+    audio_playlist_queue = Queue()
+    llm_invoke_queue = Queue()
+    event_queue = Queue()
     
     @staticmethod
     def load_config(env_file: str):
@@ -164,10 +164,6 @@ class AIGC:
 
     def msg_handler(self):
         while True:
-            if self.event_queue.empty():
-                time.sleep(0.0001)
-                continue
-
             event = self.event_queue.get()
             if event["type"] == "wakeup":
                 self.wakeup.on_next(event["data"])

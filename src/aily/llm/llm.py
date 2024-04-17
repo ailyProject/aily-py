@@ -102,10 +102,6 @@ class LLMs:
 
     def run(self):
         while True:
-            if self.handler_queue.empty():
-                time.sleep(0.0001)
-                continue
-
             event = self.handler_queue.get()
             if event["type"] == "invoke":
                 self.send_message(event["data"])

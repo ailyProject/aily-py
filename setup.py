@@ -18,6 +18,7 @@ setup(
         "loguru",
         "requests",
         "pyserial",
-        "openai"
+        "openai",
+        "edge-tts == 6.1.10"
     ]
 )
