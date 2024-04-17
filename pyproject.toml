@@ -1,6 +1,6 @@
 [project]
 name = "aily-py"
-version = "1.0.1"
+version = "2.0.0-beta"
 dependencies = [
     "python-dotenv == 1.0.1",
     "aiohttp == 3.9.3",

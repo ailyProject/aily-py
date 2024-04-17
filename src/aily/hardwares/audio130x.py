@@ -401,4 +401,4 @@ class AudioModule(threading.Thread):
         elif mode == "multi":
             self.conversation_mode = TypeCode.CIAS_CONTINUOUS_WAKEUP
         else:
-            raise Exception("Invalid conversation mode")
+            raise Exception("Unsupported conversation mode")
