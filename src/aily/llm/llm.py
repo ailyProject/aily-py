@@ -6,9 +6,10 @@ import tiktoken
 from reactivex.subject import Subject
 from openai import OpenAI
 from loguru import logger
+import threading
 
 
-class LLMs:
+class LLMs(threading.Thread):
     def __init__(self, device):
         self.device = device
         self.chat_records = []
@@ -42,14 +43,13 @@ class LLMs:
 
         new_messages = []
         for message in reversed(messages):
-            new_message = {
-                "role": message["role"],
-                "content": message["content"]
-            }
+            new_message = {"role": message["role"], "content": message["content"]}
             current_token_length += self.get_text_token_count(message["content"])
             if "function_call" in message:
                 new_message["function_call"] = message["function_call"]
-                current_token_length += self.get_text_token_count(str(message["function_call"]))
+                current_token_length += self.get_text_token_count(
+                    str(message["function_call"])
+                )
             if current_token_length < self.max_token_length:
                 new_messages.insert(0, new_message)
             else:
@@ -67,19 +67,31 @@ class LLMs:
             model=kwargs["model"],
             messages=kwargs["messages"],
             temperature=kwargs["temperature"],
-            stream=False
+            stream=False,
         )
 
         return {
             "role": response.choices[0].message.role,
             "content": response.choices[0].message.content,
-            "tool_calls": response.choices[0].message.tool_calls
+            "tool_calls": response.choices[0].message.tool_calls,
         }
 
     def invoke(self, url, api_key, model, temperature, messages):
         if self.custom_invoke:
-            return self.custom_invoke(url=url, api_key=api_key, model=model, temperature=temperature, messages=messages)
-        return self.default_invoke(url=url, api_key=api_key, model=model, temperature=temperature, messages=messages)
+            return self.custom_invoke(
+                url=url,
+                api_key=api_key,
+                model=model,
+                temperature=temperature,
+                messages=messages,
+            )
+        return self.default_invoke(
+            url=url,
+            api_key=api_key,
+            model=model,
+            temperature=temperature,
+            messages=messages,
+        )
 
     def send_message(self, content):
         # 开始调用事件发起
@@ -88,22 +100,31 @@ class LLMs:
         messages = self.chat_records
         messages.append({"role": "user", "content": content})
         messages = self.build_prompt(messages)
-        response = self.invoke(self.url, self.api_key, self.model, self.temperature, messages)
-        self.chat_records.append({
-            "role": response["role"],
-            "content": response["content"],
-        })
+        response = self.invoke(
+            self.url, self.api_key, self.model, self.temperature, messages
+        )
+        self.chat_records.append(
+            {
+                "role": response["role"],
+                "content": response["content"],
+            }
+        )
 
         # TODO function call处理
         self.event_queue.put({"type": "on_invoke_end", "data": response["content"]})
 
     def clear_chat_records(self):
         self.chat_records.clear()
+    
+    def run_msg_handler(self):
+        for event in iter(self.handler_queue.get, None):
+            try:
+                if event["type"] == "invoke":
+                    self.send_message(event["data"])
+                else:
+                    pass
+            except Exception as e:
+                logger.error("LLM invoke error: {0}".format(e))
 
     def run(self):
-        while True:
-            event = self.handler_queue.get()
-            if event["type"] == "invoke":
-                self.send_message(event["data"])
-            else:
-                pass
+        self.run_msg_handler()

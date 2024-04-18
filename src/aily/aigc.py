@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from .hardwares.audio130x import AudioModule
 from .llm import LLMs
 from .tools import text_to_speech
+import threading
 
 
 class AIGC:
@@ -28,7 +29,7 @@ class AIGC:
     audio_playlist_queue = Queue()
     llm_invoke_queue = Queue()
     event_queue = Queue()
-    
+
     @staticmethod
     def load_config(env_file: str):
         if not load_dotenv(dotenv_path=env_file, override=True):
@@ -38,7 +39,7 @@ class AIGC:
 
     def __init__(self, env_file: str):
         self.load_config(env_file)
-        
+
         self.port = os.getenv("PORT")
         self.baudrate = os.getenv("BAUDRATE")
 
@@ -52,9 +53,9 @@ class AIGC:
         self.llm_key = os.getenv("LLM_KEY")
         self.llm_model_name = os.getenv("LLM_MODEL", "gpt-3.5-turbo")
         self.llm_server = os.getenv("LLM_URL")
-        self.llm_temperature = os.getenv("LLM_TEMPERATURE", 0.5)
+        self.llm_temperature = float(os.getenv("LLM_TEMPERATURE", 0.5))
         self.llm_pre_prompt = os.getenv("LLM_PRE_PROMPT")
-        self.llm_max_token_length = os.getenv("LLM_MAX_TOKEN_LENGTH", 16384)
+        self.llm_max_token_length = int(os.getenv("LLM_MAX_TOKEN_LENGTH", 16384))
 
         self.wait_words_list = []
         self.wait_words_voice_list = []
@@ -162,33 +163,6 @@ class AIGC:
         self._llm_init()
         self._init()
 
-    def msg_handler(self):
-        while True:
-            event = self.event_queue.get()
-            if event["type"] == "wakeup":
-                self.wakeup.on_next(event["data"])
-            elif event["type"] == "on_record_begin":
-                self.on_record_begin.on_next(event["data"])
-            elif event["type"] == "on_record_end":
-                # 播放等待音频
-                if self.wait_words_voice_auto_play:
-                    self._auto_play_wait_words()
-                self.on_record_end.on_next(event["data"])
-            elif event["type"] == "on_play_begin":
-                self.on_play_begin.on_next(event["data"])
-            elif event["type"] == "on_play_end":
-                self.on_play_end.on_next(event["data"])
-            elif event["type"] == "on_recognition":
-                self.on_recognition.on_next(event["data"])
-            elif event["type"] == "on_direction":
-                self.on_direction.on_next(event["data"])
-            elif event["type"] == "on_invoke_start":
-                self.on_invoke_start.on_next(event["data"])
-            elif event["type"] == "on_invoke_end":
-                self.on_invoke_end.on_next(event["data"])
-            else:
-                pass
-
     def set_conversation_mode(self, mode):
         self.conversation_mode = mode
 
@@ -197,7 +171,9 @@ class AIGC:
 
     def play_invalid_words(self):
         if self.invalid_voice:
-            self.audio_playlist_queue.put({"type": "play_mp3", "data": self.invalid_voice})
+            self.audio_playlist_queue.put(
+                {"type": "play_mp3", "data": self.invalid_voice}
+            )
         else:
             logger.warning("Invalid words not set")
 
@@ -249,17 +225,42 @@ class AIGC:
     def play(self, data):
         self.audio_playlist_queue.put({"type": "play_tts", "data": data})
 
-    async def main(self):
+    def run_msg_handler(self):
+        for event in iter(self.event_queue.get, None):
+            if event["type"] == "wakeup":
+                self.wakeup.on_next(event["data"])
+            elif event["type"] == "on_record_begin":
+                self.on_record_begin.on_next(event["data"])
+            elif event["type"] == "on_record_end":
+                # 播放等待音频
+                if self.wait_words_voice_auto_play:
+                    self._auto_play_wait_words()
+                self.on_record_end.on_next(event["data"])
+            elif event["type"] == "on_play_begin":
+                self.on_play_begin.on_next(event["data"])
+            elif event["type"] == "on_play_end":
+                self.on_play_end.on_next(event["data"])
+            elif event["type"] == "on_recognition":
+                self.on_recognition.on_next(event["data"])
+            elif event["type"] == "on_direction":
+                self.on_direction.on_next(event["data"])
+            elif event["type"] == "on_invoke_start":
+                self.on_invoke_start.on_next(event["data"])
+            elif event["type"] == "on_invoke_end":
+                self.on_invoke_end.on_next(event["data"])
+            else:
+                pass
+
+    async def run_tasks(self):
         self.init()
         tasks = [
-            threading.Thread(target=self.msg_handler, daemon=True),
+            threading.Thread(target=self.hardware.run, daemon=True),
             threading.Thread(target=self.llm.run, daemon=True),
+            threading.Thread(target=self.run_msg_handler, daemon=True),
         ]
-        self.hardware.start()
         for task in tasks:
             task.start()
 
-        self.hardware.join()
         for task in tasks:
             task.join()
 

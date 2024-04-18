@@ -7,7 +7,7 @@ from tenacity import retry, stop_after_attempt
 
 
 @retry(stop=stop_after_attempt(5))
-def speech_to_text(audio_file, filename) -> str:
+def speech_to_text(audio_file, filename="input.mp3") -> str:
     model = os.environ.get("STT_MODEL")
     key = os.environ.get("STT_KEY")
 

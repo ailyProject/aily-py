@@ -252,22 +252,38 @@ class AudioModule(threading.Thread):
                         self.media_read_end = MEDIA_READ_LENGTH
                         self.media(event["data"])
                         logger.info("Play wait words end")
+            
+            try:
+                data = self.serial.read(self.serial.in_waiting or self.read_length)
+            except Exception as e:
+                logger.error("Serial error: {0}".format(e))
+            else:
+                if data and len(data) > self.read_length:
+                    self.data_parse(data)
+                    func = self.cmd_action.get(self.state)
+                    if func:
+                        func(data)
+                    else:
+                        # logger.debug(f'>>>>>>>>>>>>>>>>>>>>>{self.state}')
+                        hex_string = ' '.join(format(x, '02X') for x in data)
+                        logger.debug(f'->{hex_string}')
+                    
 
-            if self.serial.in_waiting > 0:
-                data = self.serial.read(self.read_length)
-                if len(data) < self.read_length:
-                    continue
+            # if self.serial.in_waiting > 0:
+            #     data = self.serial.read(self.read_length)
+            #     if len(data) < self.read_length:
+            #         continue
 
-                self.data_parse(data)
-                func = self.cmd_action.get(self.state)
-                if func:
-                    func(data)
-                else:
-                    # logger.debug(f'>>>>>>>>>>>>>>>>>>>>>{self.state}')
-                    hex_string = ' '.join(format(x, '02X') for x in data)
-                    logger.debug(f'->{hex_string}')
+            #     self.data_parse(data)
+            #     func = self.cmd_action.get(self.state)
+            #     if func:
+            #         func(data)
+            #     else:
+            #         # logger.debug(f'>>>>>>>>>>>>>>>>>>>>>{self.state}')
+            #         hex_string = ' '.join(format(x, '02X') for x in data)
+            #         logger.debug(f'->{hex_string}')
 
-            time.sleep(0.0001)
+            # time.sleep(0.0001)
 
         self.serial.close()
         # await asyncio.sleep(0)
