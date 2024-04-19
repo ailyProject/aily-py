@@ -11,6 +11,9 @@ import threading
 
 class LLMs(threading.Thread):
     def __init__(self, device):
+        super(LLMs, self).__init__()
+        self.daemon = True
+        
         self.device = device
         self.chat_records = []
 
@@ -117,6 +120,7 @@ class LLMs(threading.Thread):
         self.chat_records.clear()
     
     def run_msg_handler(self):
+        logger.success("LLM service started")
         for event in iter(self.handler_queue.get, None):
             try:
                 if event["type"] == "invoke":

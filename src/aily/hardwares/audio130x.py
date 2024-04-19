@@ -2,6 +2,7 @@ import struct
 import asyncio
 import threading
 import time
+import os
 
 import serial
 
@@ -24,9 +25,9 @@ class FillCode:
     INVAILD_SPEAK = 0x12345666
     TTS_FILL = 0x12345677
     MP3_FILL = 0x12345688
-    M4A_FILL = 0x123456aa
-    REPEAT_FILL = 0x123456ab
-    WAV_FILL = 0x123456bb
+    M4A_FILL = 0x123456AA
+    REPEAT_FILL = 0x123456AB
+    WAV_FILL = 0x123456BB
     NO_WAKE_FILL = 0x0
 
 
@@ -48,12 +49,12 @@ class TypeCode:
     NET_PLAY_LOCAL_TTS = 0x0207
     NET_PLAY_END = 0x0208
     NET_PLAY_RECONECT_URL = 0x0209
-    PLAY_DATA_GET = 0x020a
-    PLAY_DATA_RECV = 0x020b
-    PLAY_DATA_END = 0x020c
-    PLAY_TTS_END = 0x020d
-    PLAY_EMPTY = 0x020e
-    PLAY_NEXT = 0x020f
+    PLAY_DATA_GET = 0x020A
+    PLAY_DATA_RECV = 0x020B
+    PLAY_DATA_END = 0x020C
+    PLAY_TTS_END = 0x020D
+    PLAY_EMPTY = 0x020E
+    PLAY_NEXT = 0x020F
     PLAYING_TTS = 0x0210
     PLAY_RESUME_ERRO = 0x0211
     PLAY_LAST = 0x0212
@@ -73,9 +74,9 @@ class TypeCode:
     GET_PROFILE = 0x0407
     NEED_PROFILE = 0x0408
     CLOUD_CONNECTED = 0x0409
-    CLOUD_DISCONNECTED = 0x040a
-    NET_CONFIG_SUCCESS = 0x040b
-    NET_CONFIG_FAIL = 0x040c
+    CLOUD_DISCONNECTED = 0x040A
+    NET_CONFIG_SUCCESS = 0x040B
+    NET_CONFIG_FAIL = 0x040C
     CIAS_OTA_START = 0x0501
     CIAS_OTA_DATA = 0x0502
     CIAS_OTA_SUCESS = 0x0503
@@ -85,8 +86,8 @@ class TypeCode:
     CIAS_FACTORY_SELF_TEST_START = 0x0507
     CIAS_IR_DATA = 0x0508
     CIAS_IR_LOADING_DATA = 0x0509
-    CIAS_IR_LOAD_DATA_OVER = 0x050a
-    CIAS_IR_LOAD_DATA_START = 0x050b
+    CIAS_IR_LOAD_DATA_OVER = 0x050A
+    CIAS_IR_LOAD_DATA_START = 0x050B
     CIAS_CJSON_DATA = 0x0601
     CIAS_SIGNLE_WAKEUP = 0x0701
     CIAS_PHYSICAL_WAKEUP = 0x0702
@@ -113,6 +114,9 @@ class AudioModule(threading.Thread):
 
     def __init__(self, device):
         super(AudioModule, self).__init__()
+
+        self.daemon = True
+
         self.device = device
         self.port = device.port
         self.baud = device.baudrate
@@ -126,7 +130,7 @@ class AudioModule(threading.Thread):
         self.media_state = TypeCode.DEVICE_SLEEP
         self.conversation_mode = TypeCode.CIAS_SIGNLE_WAKEUP
 
-        self.format_string = 'IHHHHI'
+        self.format_string = "IHHHHI"
         self.read_length = STANDARD_HEAD_LEN
         self.pcm_data = bytearray()
         self.decode_data = bytes()
@@ -136,29 +140,35 @@ class AudioModule(threading.Thread):
         self.media_count = 0
         self.process_media_data = bytes()
 
-        self.cmd_action = {TypeCode.WAKE_UP: self.wakeup,
-                           TypeCode.LOCAL_ASR_NOTIFY: self.local,
-                           TypeCode.PCM_MIDDLE: self.record,
-                           TypeCode.PCM_FINISH: self.upload,
-                           TypeCode.PLAY_DATA_GET: self.media,
-                           TypeCode.PLAY_DATA_RECV: self.media,
-                           TypeCode.NET_PLAY_END: self.media_end}
+        self.cmd_action = {
+            TypeCode.WAKE_UP: self.wakeup,
+            TypeCode.LOCAL_ASR_NOTIFY: self.local,
+            TypeCode.PCM_MIDDLE: self.record,
+            TypeCode.PCM_FINISH: self.upload,
+            TypeCode.PLAY_DATA_GET: self.media,
+            TypeCode.PLAY_DATA_RECV: self.media,
+            TypeCode.NET_PLAY_END: self.media_end,
+        }
 
         self.lasted_event = ""
 
-        start_data = 'A5 A5 5A 5A 00 00 01 02 00 00 00 00 77 56 34 12'
-        head_data = 'A5 A5 5A 5A 00 00 0A 02 00 00 00 00 77 56 34 12'
-        end_data = 'A5 A5 5A 5A 00 00 0C 02 00 00 00 00 77 56 34 12'
-        stop_data = 'A5 A5 5A 5A 00 00 0D 02 00 00 00 00 77 56 34 12'
+        start_data = "A5 A5 5A 5A 00 00 01 02 00 00 00 00 77 56 34 12"
+        head_data = "A5 A5 5A 5A 00 00 0A 02 00 00 00 00 77 56 34 12"
+        end_data = "A5 A5 5A 5A 00 00 0C 02 00 00 00 00 77 56 34 12"
+        stop_data = "A5 A5 5A 5A 00 00 0D 02 00 00 00 00 77 56 34 12"
         hex_values = start_data.split()
-        self.start_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.NET_PLAY_START, 0, 0,
-                                                       FillCode.MP3_FILL)
-        self.head_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.PLAY_DATA_GET, 0, 0,
-                                                      FillCode.MP3_FILL)
-        self.end_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.PLAY_DATA_END, 0, 0,
-                                                     FillCode.MP3_FILL)
-        self.stop_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.NET_PLAY_STOP, 0, 0,
-                                                      FillCode.MP3_FILL)
+        self.start_byte_data = self.protocol_head_pack(
+            MAGIC_DATA, CHECK_SUM, TypeCode.NET_PLAY_START, 0, 0, FillCode.MP3_FILL
+        )
+        self.head_byte_data = self.protocol_head_pack(
+            MAGIC_DATA, CHECK_SUM, TypeCode.PLAY_DATA_GET, 0, 0, FillCode.MP3_FILL
+        )
+        self.end_byte_data = self.protocol_head_pack(
+            MAGIC_DATA, CHECK_SUM, TypeCode.PLAY_DATA_END, 0, 0, FillCode.MP3_FILL
+        )
+        self.stop_byte_data = self.protocol_head_pack(
+            MAGIC_DATA, CHECK_SUM, TypeCode.NET_PLAY_STOP, 0, 0, FillCode.MP3_FILL
+        )
         # self.single_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.CIAS_SIGNLE_WAKEUP, 0, 0,
         #                                                 FillCode.DEF_FILL)
 
@@ -168,97 +178,123 @@ class AudioModule(threading.Thread):
         # self.aigc_event.subscribe(lambda i: self.event_handler(i))
 
     def update_fill_code(self, fill_code):
-        self.start_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.NET_PLAY_START, 0, 0,
-                                                       fill_code)
-        self.head_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.PLAY_DATA_GET, 0, 0,
-                                                      fill_code)
-        self.end_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.PLAY_DATA_END, 0, 0,
-                                                     fill_code)
-        self.stop_byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.NET_PLAY_STOP, 0, 0,
-                                                      fill_code)
+        self.start_byte_data = self.protocol_head_pack(
+            MAGIC_DATA, CHECK_SUM, TypeCode.NET_PLAY_START, 0, 0, fill_code
+        )
+        self.head_byte_data = self.protocol_head_pack(
+            MAGIC_DATA, CHECK_SUM, TypeCode.PLAY_DATA_GET, 0, 0, fill_code
+        )
+        self.end_byte_data = self.protocol_head_pack(
+            MAGIC_DATA, CHECK_SUM, TypeCode.PLAY_DATA_END, 0, 0, fill_code
+        )
+        self.stop_byte_data = self.protocol_head_pack(
+            MAGIC_DATA, CHECK_SUM, TypeCode.NET_PLAY_STOP, 0, 0, fill_code
+        )
         self.file_code = fill_code
 
-    def protocol_head_pack(self, magic, checksum, head_type, data_len, version, fill_data):
-        head_data = bytearray(struct.pack('<I', magic))
-        head_data += bytearray(struct.pack('<H', checksum))
-        head_data += bytearray(struct.pack('<H', head_type))
-        head_data += bytearray(struct.pack('<H', data_len))
-        head_data += bytearray(struct.pack('<H', version))
-        head_data += bytearray(struct.pack('<I', fill_data))
+    def protocol_head_pack(
+        self, magic, checksum, head_type, data_len, version, fill_data
+    ):
+        head_data = bytearray(struct.pack("<I", magic))
+        head_data += bytearray(struct.pack("<H", checksum))
+        head_data += bytearray(struct.pack("<H", head_type))
+        head_data += bytearray(struct.pack("<H", data_len))
+        head_data += bytearray(struct.pack("<H", version))
+        head_data += bytearray(struct.pack("<I", fill_data))
         return head_data
 
     def init(self):
         # logger.debug(f'{self.port, self.baud}')
-        self.serial = serial.Serial(self.port, self.baud, timeout=2)
-
-    def run(self):
-        logger.info('serial run')
+        self.serial = serial.Serial(
+            self.port, self.baud, timeout=float(os.getenv("SERIAL_TIMEOUT"))
+        )
 
         # 初始化对话模式
         if self.conversation_mode == TypeCode.CIAS_SIGNLE_WAKEUP:
-            byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.CIAS_SIGNLE_WAKEUP, 0, 0,
-                                                FillCode.DEF_FILL)
+            byte_data = self.protocol_head_pack(
+                MAGIC_DATA,
+                CHECK_SUM,
+                TypeCode.CIAS_SIGNLE_WAKEUP,
+                0,
+                0,
+                FillCode.DEF_FILL,
+            )
         elif self.conversation_mode == TypeCode.CIAS_CONTINUOUS_WAKEUP:
-            byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.CIAS_CONTINUOUS_WAKEUP, 0, 0,
-                                                FillCode.DEF_FILL)
+            byte_data = self.protocol_head_pack(
+                MAGIC_DATA,
+                CHECK_SUM,
+                TypeCode.CIAS_CONTINUOUS_WAKEUP,
+                0,
+                0,
+                FillCode.DEF_FILL,
+            )
         else:
-            byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.CIAS_PHYSICAL_WAKEUP, 0, 0,
-                                                FillCode.DEF_FILL)
+            byte_data = self.protocol_head_pack(
+                MAGIC_DATA,
+                CHECK_SUM,
+                TypeCode.CIAS_PHYSICAL_WAKEUP,
+                0,
+                0,
+                FillCode.DEF_FILL,
+            )
 
         self.write(byte_data)
 
-        while True:
-            if not self.device.audio_playlist_queue.empty():
-                event = self.device.audio_playlist_queue.get()
-                logger.info("Audio download event: {0}".format(event["type"]))
-                if event["type"] == "play_tts":
-                    # 发起播放开始事件
-                    self.update_fill_code(FillCode.TTS_FILL)
-                    logger.info("开始播放tts，先停止当前播放")
+    def run_msg_handler(self):
+        logger.success("Audio service started")
+        for event in iter(self.device.audio_playlist_queue.get, None):
+            logger.info("Audio download event: {0}".format(event["type"]))
+            if event["type"] == "play_tts":
+                # 发起播放开始事件
+                self.update_fill_code(FillCode.TTS_FILL)
+                logger.info("开始播放tts，先停止当前播放")
+                self.write(self.stop_byte_data)
+                # await asyncio.sleep(0.5)
+                logger.info("停止播放")
+                self.media_data = event["data"]
+                self.write(self.start_byte_data)
+                self.media_count = 0
+                self.media_read_start = 0
+                self.media_read_end = MEDIA_READ_LENGTH
+                self.media(event["data"])
+
+                self.audio_event_queue.put({"type": "on_play_begin", "data": ""})
+            elif event["type"] == "play_mp3":
+                if self.file_code != FillCode.MP3_FILL:
+                    pass
+                else:
+                    self.update_fill_code(FillCode.MP3_FILL)
                     self.write(self.stop_byte_data)
-                    # await asyncio.sleep(0.5)
-                    logger.info("停止播放")
-                    self.media_data = event["data"]
                     self.write(self.start_byte_data)
+                    self.media_data = event["data"]
                     self.media_count = 0
                     self.media_read_start = 0
                     self.media_read_end = MEDIA_READ_LENGTH
                     self.media(event["data"])
+            elif event["type"] == "play_wait_words":
+                logger.info("Play wait words, file_code: {0}".format(self.file_code))
+                if self.file_code != FillCode.MP3_FILL:
+                    pass
+                else:
+                    self.update_fill_code(FillCode.MP3_FILL)
+                    self.write(self.stop_byte_data)
+                    self.write(self.start_byte_data)
+                    self.media_data = event["data"]
+                    self.media_count = 0
+                    self.media_read_start = 0
+                    self.media_read_end = MEDIA_READ_LENGTH
+                    self.media(event["data"])
+                    logger.info("Play wait words end")
 
-                    self.audio_event_queue.put({"type": "on_play_begin", "data": ""})
-                elif event["type"] == "play_mp3":
-                    if self.file_code != FillCode.MP3_FILL:
-                        pass
-                    else:
-                        self.update_fill_code(FillCode.MP3_FILL)
-                        self.write(self.stop_byte_data)
-                        self.write(self.start_byte_data)
-                        self.media_data = event["data"]
-                        self.media_count = 0
-                        self.media_read_start = 0
-                        self.media_read_end = MEDIA_READ_LENGTH
-                        self.media(event["data"])
-                elif event["type"] == "play_wait_words":
-                    logger.info("Play wait words, file_code: {0}".format(self.file_code))
-                    if self.file_code != FillCode.MP3_FILL:
-                        pass
-                    else:
-                        self.update_fill_code(FillCode.MP3_FILL)
-                        self.write(self.stop_byte_data)
-                        self.write(self.start_byte_data)
-                        self.media_data = event["data"]
-                        self.media_count = 0
-                        self.media_read_start = 0
-                        self.media_read_end = MEDIA_READ_LENGTH
-                        self.media(event["data"])
-                        logger.info("Play wait words end")
-            
+    def run_serial(self):
+        logger.info("Serial service started")
+        while True:
             try:
-                data = self.serial.read(self.serial.in_waiting or self.read_length)
-            except Exception as e:
-                logger.error("Serial error: {0}".format(e))
-            else:
-                if data and len(data) > self.read_length:
+                if self.serial.in_waiting > 0:
+                    data = self.serial.read(self.read_length)
+                    if len(data) < self.read_length:
+                        continue
+
                     self.data_parse(data)
                     func = self.cmd_action.get(self.state)
                     if func:
@@ -267,7 +303,20 @@ class AudioModule(threading.Thread):
                         # logger.debug(f'>>>>>>>>>>>>>>>>>>>>>{self.state}')
                         hex_string = ' '.join(format(x, '02X') for x in data)
                         logger.debug(f'->{hex_string}')
-                    
+            except Exception as e:
+                logger.error("Serial run error: {0}".format(e))
+
+    def run(self):
+        tasks = [
+            threading.Thread(target=self.run_msg_handler),
+            threading.Thread(target=self.run_serial),
+        ]
+
+        for task in tasks:
+            task.start()
+
+        for task in tasks:
+            task.join()
 
             # if self.serial.in_waiting > 0:
             #     data = self.serial.read(self.read_length)
@@ -309,7 +358,7 @@ class AudioModule(threading.Thread):
         if not len(self.pcm_data):
             return
 
-        logger.info('Pcm data to upload.')
+        logger.info("Pcm data to upload.")
 
         # self.device.audio_upload_queue.put(self.pcm_data)
 
@@ -333,11 +382,11 @@ class AudioModule(threading.Thread):
         # self.media_read_end = MEDIA_READ_LENGTH
 
     def send_media_data(self):
-        send_data = self.media_data[self.media_read_start: self.media_read_end]
+        send_data = self.media_data[self.media_read_start : self.media_read_end]
         if send_data:
             data_length = len(send_data)
-            packed_data = bytearray(struct.pack('<H', data_length))
-            self.head_byte_data[8: 10] = packed_data
+            packed_data = bytearray(struct.pack("<H", data_length))
+            self.head_byte_data[8:10] = packed_data
             send_data = self.head_byte_data + send_data
             self.write(send_data)
             self.media_count += 1
@@ -348,7 +397,7 @@ class AudioModule(threading.Thread):
             self.media_count = 0
             self.media_read_start = 0
             self.media_read_end = MEDIA_READ_LENGTH
-            logger.info('Media data send completed')
+            logger.info("Media data send completed")
 
             # 发起播放结束事件
             # self.event.on_next({"type": "on_play_end", "data": ""})
@@ -378,10 +427,10 @@ class AudioModule(threading.Thread):
     def local(self, data):
         self.pcm_data = bytearray()
         self.device.audio_upload_cancel = True
-        logger.info(f'LOCAL ASR NOTIFY')
+        logger.info(f"LOCAL ASR NOTIFY")
         if len(data) == 2:
-            data_int = struct.unpack('<h', data)[0]
-            logger.info(f'LOCAL ASR NOTIFY: {data_int}')
+            data_int = struct.unpack("<h", data)[0]
+            logger.info(f"LOCAL ASR NOTIFY: {data_int}")
             # 发起离线指令识别事件
             # self.event.on_next({"type": "on_recognition", "data": data_int})
             self.audio_event_queue.put({"type": "on_recognition", "data": data_int})

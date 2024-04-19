@@ -226,6 +226,7 @@ class AIGC:
         self.audio_playlist_queue.put({"type": "play_tts", "data": data})
 
     def run_msg_handler(self):
+        logger.success("AIGC service started")
         for event in iter(self.event_queue.get, None):
             if event["type"] == "wakeup":
                 self.wakeup.on_next(event["data"])
@@ -251,12 +252,12 @@ class AIGC:
             else:
                 pass
 
-    async def run_tasks(self):
+    async def main(self):
         self.init()
         tasks = [
-            threading.Thread(target=self.hardware.run, daemon=True),
-            threading.Thread(target=self.llm.run, daemon=True),
             threading.Thread(target=self.run_msg_handler, daemon=True),
+            self.hardware,
+            self.llm,
         ]
         for task in tasks:
             task.start()
