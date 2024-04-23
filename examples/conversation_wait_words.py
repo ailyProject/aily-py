@@ -6,10 +6,7 @@ import os
 import time
 
 from aily.aigc import AIGC
-from aily.tools import speech_to_text_by_sr, text_to_speech, speex_decoder
-from dotenv import load_dotenv
-
-load_dotenv()
+from aily.tools import speech_to_text, text_to_speech, speex_decoder
 
 
 def record_end_handler(data):
@@ -19,7 +16,7 @@ def record_end_handler(data):
     print("解码结束: {0}".format(int(time.time())))
     # 语音转文字
     print("语音转文字: {0}".format(int(time.time())))
-    text = speech_to_text_by_sr(video_data, os.getenv("AZURE_KEY"))
+    text = speech_to_text(video_data)
     print("识别到语音: {0}{1}".format(text, int(time.time())))
     # 调用LLM
     print("发起LLM调用: {0}".format(int(time.time())))
@@ -34,12 +31,7 @@ def invoke_end_handler(data):
     aigc.play(speech_data)
 
 
-aigc = AIGC(os.getenv("PORT"))
-aigc.set_key(os.getenv("LLM_01KEY"))
-aigc.set_server(os.getenv("LLM_01URL"))
-aigc.set_pre_prompt(os.getenv("PRE_PROMPT"))
-aigc.set_model("yi-34b-chat-0205")
-aigc.set_temp(0.5)
+aigc = AIGC(".env")
 aigc.set_wait_words("./robot_thinking_16k_s16le.mp3")
 
 aigc.on_record_end.subscribe(lambda i: record_end_handler(i))

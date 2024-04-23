@@ -204,9 +204,8 @@ class AudioModule(threading.Thread):
         return head_data
 
     def init(self):
-        # logger.debug(f'{self.port, self.baud}')
         self.serial = serial.Serial(
-            self.port, self.baud, timeout=float(os.getenv("SERIAL_TIMEOUT"))
+            self.port, self.baud, timeout=float(os.environ.get("SERIAL_TIMEOUT", 1))
         )
 
         # 初始化对话模式
@@ -290,19 +289,18 @@ class AudioModule(threading.Thread):
         logger.info("Serial service started")
         while True:
             try:
-                if self.serial.in_waiting > 0:
-                    data = self.serial.read(self.read_length)
-                    if len(data) < self.read_length:
-                        continue
+                data = self.serial.read(self.read_length)
+                if len(data) < self.read_length:
+                    continue
 
-                    self.data_parse(data)
-                    func = self.cmd_action.get(self.state)
-                    if func:
-                        func(data)
-                    else:
-                        # logger.debug(f'>>>>>>>>>>>>>>>>>>>>>{self.state}')
-                        hex_string = ' '.join(format(x, '02X') for x in data)
-                        logger.debug(f'->{hex_string}')
+                self.data_parse(data)
+                func = self.cmd_action.get(self.state)
+                if func:
+                    func(data)
+                else:
+                    # logger.debug(f'>>>>>>>>>>>>>>>>>>>>>{self.state}')
+                    hex_string = ' '.join(format(x, '02X') for x in data)
+                    logger.debug(f'->{hex_string}')
             except Exception as e:
                 logger.error("Serial run error: {0}".format(e))
 

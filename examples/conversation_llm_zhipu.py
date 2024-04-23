@@ -8,7 +8,7 @@ import time
 from aily import AIGC
 from zhipuai import ZhipuAI
 from dotenv import load_dotenv
-from aily.tools import speech_to_text_by_sr, text_to_speech, speex_decoder
+from aily.tools import speech_to_text, text_to_speech, speex_decoder
 
 load_dotenv()
 
@@ -32,7 +32,7 @@ def record_end_handler(data):
     # 解码pcm, azure语音识别需要wav格式, 所以这里需要指定result_type="wav"
     voice_data = speex_decoder(data, result_type="wav")
     # 语音转文字
-    text = speech_to_text_by_sr(voice_data, key=os.getenv("AZURE_KEY"))
+    text = speech_to_text(voice_data)
     print("转换后的文字为: {0}".format(text))
     # 调用LLM
     aigc.send_message(text)
@@ -46,10 +46,7 @@ def invoke_end_handler(data):
     aigc.play(speech_data)
 
 
-aigc = AIGC(os.getenv("PORT"))
-aigc.set_key(os.getenv("LLM_GLM_KEY"))
-aigc.set_server(os.getenv("LLM_GLM_URL"))
-aigc.set_model("glm-4")
+aigc = AIGC(".env")
 aigc.set_custom_llm_invoke(custom_invoke)
 
 aigc.on_record_end.subscribe(lambda i: record_end_handler(i))
