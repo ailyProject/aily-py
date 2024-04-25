@@ -10,6 +10,7 @@ from reactivex.subject import Subject
 from loguru import logger
 from ..tools.speex_decoder import speex_decoder
 
+wait_event = threading.Event()
 
 class DataHead:
     HEAD_MAGIC = 0
@@ -242,6 +243,7 @@ class AudioModule(threading.Thread):
     def run_msg_handler(self):
         logger.success("Audio service started")
         for event in iter(self.device.audio_playlist_queue.get, None):
+            wait_event.set()
             logger.info("Audio download event: {0}".format(event["type"]))
             if event["type"] == "play_tts":
                 # 发起播放开始事件
@@ -284,10 +286,12 @@ class AudioModule(threading.Thread):
                     self.media_read_end = MEDIA_READ_LENGTH
                     self.media(event["data"])
                     logger.info("Play wait words end")
+            
+            wait_event.clear()
 
     def run_serial(self):
         logger.info("Serial service started")
-        while True:
+        while True and not wait_event.is_set():
             try:
                 data = self.serial.read(self.read_length)
                 if len(data) < self.read_length:

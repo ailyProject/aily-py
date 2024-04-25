@@ -22,9 +22,7 @@ def text_to_speech(text, output_file=None) -> bytes:
         try:
             role = os.environ.get("TTS_ROLE", "zh-CN-XiaoxiaoNeural")
             communicate = edge_tts.Communicate(text, role)
-            loop = asyncio.get_event_loop()
-            loop.run_until_complete(communicate.save(output_file))
-            loop.close()
+            asyncio.run(communicate.save(output_file))
         except Exception as e:
             logger.error(
                 "Could not request results from Edge TTS service; {0}".format(e)
