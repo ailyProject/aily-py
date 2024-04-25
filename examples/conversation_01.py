@@ -10,7 +10,6 @@ from aily.tools import speech_to_text, text_to_speech, speex_decoder
 
 
 def record_end_handler(data):
-    
     voice_data = speex_decoder(data, result_type="wav")
     # 语音转文字
     text = speech_to_text(voice_data)

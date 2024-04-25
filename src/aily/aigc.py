@@ -9,6 +9,7 @@ from loguru import logger
 from queue import Queue
 from dotenv import load_dotenv
 from .hardwares.audio130x import AudioModule
+from .db import Cache
 from .llm import LLMs
 from .tools import text_to_speech
 import threading
@@ -29,6 +30,7 @@ class AIGC:
     audio_playlist_queue = Queue()
     llm_invoke_queue = Queue()
     event_queue = Queue()
+    cache_queue = Queue()
 
     @staticmethod
     def load_config(env_file: str):
@@ -80,6 +82,12 @@ class AIGC:
         # 聊天记录有效时间
         self.conversation_expired_at = 5 * 60
 
+        # 数据库初始化
+        if os.environ.get("DB_NAME"):
+            os.environ["DB_NAME"] = os.path.abspath(os.environ.get("DB_NAME"))
+        else:
+            os.environ["DB_NAME"] = os.path.abspath("aigc.db")
+
     def set_hardware(self, module):
         self.hardware = module
 
@@ -124,6 +132,9 @@ class AIGC:
         self.llm = LLMs(self)
         if self.custom_llm_invoke:
             self.llm.set_custom_invoke(self.custom_llm_invoke)
+    
+    def _cache_init(self):
+        self.cache = Cache(self)
 
     def _init(self):
         # 初始化等待词
@@ -161,6 +172,7 @@ class AIGC:
     def init(self):
         self._hardware_init()
         self._llm_init()
+        self._cache_init()
         self._init()
 
     def set_conversation_mode(self, mode):
@@ -258,6 +270,7 @@ class AIGC:
             threading.Thread(target=self.run_msg_handler, daemon=True),
             self.hardware,
             self.llm,
+            self.cache
         ]
         for task in tasks:
             task.start()

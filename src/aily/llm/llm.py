@@ -13,7 +13,7 @@ class LLMs(threading.Thread):
     def __init__(self, device):
         super(LLMs, self).__init__()
         self.daemon = True
-        
+
         self.device = device
         self.chat_records = []
 
@@ -28,6 +28,7 @@ class LLMs(threading.Thread):
 
         self.event_queue = device.event_queue
         self.handler_queue = device.llm_invoke_queue
+        self.cache_queue = device.cache_queue
 
     def set_custom_invoke(self, custom_invoke: callable):
         self.custom_invoke = custom_invoke
@@ -100,8 +101,11 @@ class LLMs(threading.Thread):
         # 开始调用事件发起
         self.event_queue.put({"type": "on_invoke_start", "data": ""})
         # 获取缓存聊天记录
+        current_msg = {"role": "user", "content": content}
+        self.cache_queue.put({"type": "conversations", "data": [time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), current_msg["role"], current_msg["content"]]})
+        
         messages = self.chat_records
-        messages.append({"role": "user", "content": content})
+        messages.append(current_msg)
         messages = self.build_prompt(messages)
         response = self.invoke(
             self.url, self.api_key, self.model, self.temperature, messages
@@ -115,10 +119,12 @@ class LLMs(threading.Thread):
 
         # TODO function call处理
         self.event_queue.put({"type": "on_invoke_end", "data": response["content"]})
+        self.cache_queue.put({"type": "conversations", "data": [time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), response["role"], response["content"]]})
+        
 
     def clear_chat_records(self):
         self.chat_records.clear()
-    
+
     def run_msg_handler(self):
         logger.success("LLM service started")
         for event in iter(self.handler_queue.get, None):

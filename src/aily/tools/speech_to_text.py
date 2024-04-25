@@ -39,7 +39,7 @@ def speech_to_text(audio_file, filename="input.mp3") -> str:
             )
     elif model == "whisper-1":
         try:
-            base_url = os.environ.get("LLM_URL", "https://api.openai.com/v1")
+            base_url = os.environ.get("STT_URL", "https://api.openai.com/v1")
             url = "{0}/audio/transcriptions".format(base_url if base_url else os.getenv("LLM_URL"))
             files = {
                 "file": (filename, audio_file),
