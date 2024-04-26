@@ -308,17 +308,17 @@ class AudioModule(threading.Thread):
             except Exception as e:
                 logger.error("Serial run error: {0}".format(e))
 
-    def run(self):
-        tasks = [
-            threading.Thread(target=self.run_msg_handler),
-            threading.Thread(target=self.run_serial),
-        ]
+    # def run(self):
+    #     tasks = [
+    #         threading.Thread(target=self.run_msg_handler),
+    #         threading.Thread(target=self.run_serial),
+    #     ]
 
-        for task in tasks:
-            task.start()
+    #     for task in tasks:
+    #         task.start()
 
-        for task in tasks:
-            task.join()
+    #     for task in tasks:
+    #         task.join()
 
             # if self.serial.in_waiting > 0:
             #     data = self.serial.read(self.read_length)
@@ -333,6 +333,87 @@ class AudioModule(threading.Thread):
             #         # logger.debug(f'>>>>>>>>>>>>>>>>>>>>>{self.state}')
             #         hex_string = ' '.join(format(x, '02X') for x in data)
             #         logger.debug(f'->{hex_string}')
+
+            # time.sleep(0.0001)
+
+        self.serial.close()
+        # await asyncio.sleep(0)
+    
+    def run(self):
+        logger.info('serial run')
+
+        # 初始化对话模式
+        if self.conversation_mode == TypeCode.CIAS_SIGNLE_WAKEUP:
+            byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.CIAS_SIGNLE_WAKEUP, 0, 0,
+                                                FillCode.DEF_FILL)
+        elif self.conversation_mode == TypeCode.CIAS_CONTINUOUS_WAKEUP:
+            byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.CIAS_CONTINUOUS_WAKEUP, 0, 0,
+                                                FillCode.DEF_FILL)
+        else:
+            byte_data = self.protocol_head_pack(MAGIC_DATA, CHECK_SUM, TypeCode.CIAS_PHYSICAL_WAKEUP, 0, 0,
+                                                FillCode.DEF_FILL)
+
+        self.write(byte_data)
+
+        while True:
+            if not self.device.audio_playlist_queue.empty():
+                event = self.device.audio_playlist_queue.get()
+                logger.info("Audio download event: {0}".format(event["type"]))
+                if event["type"] == "play_tts":
+                    # 发起播放开始事件
+                    self.update_fill_code(FillCode.TTS_FILL)
+                    logger.info("开始播放tts，先停止当前播放")
+                    self.write(self.stop_byte_data)
+                    # await asyncio.sleep(0.5)
+                    logger.info("停止播放")
+                    self.media_data = event["data"]
+                    self.write(self.start_byte_data)
+                    self.media_count = 0
+                    self.media_read_start = 0
+                    self.media_read_end = MEDIA_READ_LENGTH
+                    self.media(event["data"])
+
+                    self.audio_event_queue.put({"type": "on_play_begin", "data": ""})
+                elif event["type"] == "play_mp3":
+                    if self.file_code != FillCode.MP3_FILL:
+                        pass
+                    else:
+                        self.update_fill_code(FillCode.MP3_FILL)
+                        self.write(self.stop_byte_data)
+                        self.write(self.start_byte_data)
+                        self.media_data = event["data"]
+                        self.media_count = 0
+                        self.media_read_start = 0
+                        self.media_read_end = MEDIA_READ_LENGTH
+                        self.media(event["data"])
+                elif event["type"] == "play_wait_words":
+                    logger.info("Play wait words, file_code: {0}".format(self.file_code))
+                    if self.file_code != FillCode.MP3_FILL:
+                        pass
+                    else:
+                        self.update_fill_code(FillCode.MP3_FILL)
+                        self.write(self.stop_byte_data)
+                        self.write(self.start_byte_data)
+                        self.media_data = event["data"]
+                        self.media_count = 0
+                        self.media_read_start = 0
+                        self.media_read_end = MEDIA_READ_LENGTH
+                        self.media(event["data"])
+                        logger.info("Play wait words end")
+
+            # if self.serial.in_waiting > 0:
+            data = self.serial.read(self.read_length)
+            if len(data) < self.read_length:
+                continue
+
+            self.data_parse(data)
+            func = self.cmd_action.get(self.state)
+            if func:
+                func(data)
+            else:
+                # logger.debug(f'>>>>>>>>>>>>>>>>>>>>>{self.state}')
+                hex_string = ' '.join(format(x, '02X') for x in data)
+                logger.debug(f'->{hex_string}')
 
             # time.sleep(0.0001)
 

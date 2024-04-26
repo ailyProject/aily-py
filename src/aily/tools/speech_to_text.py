@@ -32,11 +32,12 @@ def speech_to_text(audio_file, filename="input.mp3") -> str:
                     e
                 )
             )
-            raise RuntimeError(
-                "Could not request results from Azure Speech Recognition service; {0}".format(
-                    e
-                )
-            )
+            # raise RuntimeError(
+            #     "Could not request results from Azure Speech Recognition service; {0}".format(
+            #         e
+            #     )
+            # )
+            return None
     elif model == "whisper-1":
         try:
             base_url = os.environ.get("STT_URL", "https://api.openai.com/v1")
@@ -58,9 +59,10 @@ def speech_to_text(audio_file, filename="input.mp3") -> str:
             return json.loads(res.text)['text']
         except Exception as e:
             logger.error("Could not request results from LLM service; {0}".format(e))
-            raise RuntimeError(
-                "Could not request results from LLM service; {0}".format(e)
-            )
+            # raise RuntimeError(
+            #     "Could not request results from LLM service; {0}".format(e)
+            # )
+            return None
     else:
         raise Exception("Speech recognition model is not supported")
 

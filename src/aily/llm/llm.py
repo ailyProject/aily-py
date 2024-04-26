@@ -9,10 +9,10 @@ from loguru import logger
 import threading
 
 
-class LLMs(threading.Thread):
+class LLMs:
     def __init__(self, device):
-        super(LLMs, self).__init__()
-        self.daemon = True
+        # super(LLMs, self).__init__()
+        # self.daemon = True
 
         self.device = device
         self.chat_records = []
@@ -29,14 +29,13 @@ class LLMs(threading.Thread):
         self.event_queue = device.event_queue
         self.handler_queue = device.llm_invoke_queue
         self.cache_queue = device.cache_queue
+        self.encoding = tiktoken.get_encoding("cl100k_base")
 
     def set_custom_invoke(self, custom_invoke: callable):
         self.custom_invoke = custom_invoke
 
-    @staticmethod
-    def get_text_token_count(text):
-        encoding = tiktoken.get_encoding("cl100k_base")
-        num_tokens = len(encoding.encode(text))
+    def get_text_token_count(self, text):
+        num_tokens = len(self.encoding.encode(text))
         return num_tokens
 
     def build_prompt(self, messages):
@@ -102,14 +101,24 @@ class LLMs(threading.Thread):
         self.event_queue.put({"type": "on_invoke_start", "data": ""})
         # 获取缓存聊天记录
         current_msg = {"role": "user", "content": content}
-        self.cache_queue.put({"type": "conversations", "data": [time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), current_msg["role"], current_msg["content"]]})
-        
+        self.cache_queue.put(
+            {
+                "type": "conversations",
+                "data": [
+                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                    current_msg["role"],
+                    current_msg["content"],
+                ],
+            }
+        )
         messages = self.chat_records
         messages.append(current_msg)
         messages = self.build_prompt(messages)
+        start_time = time.time()
         response = self.invoke(
             self.url, self.api_key, self.model, self.temperature, messages
         )
+        logger.info(f"LLM调用耗时: {time.time() - start_time}")
         self.chat_records.append(
             {
                 "role": response["role"],
@@ -119,22 +128,38 @@ class LLMs(threading.Thread):
 
         # TODO function call处理
         self.event_queue.put({"type": "on_invoke_end", "data": response["content"]})
-        self.cache_queue.put({"type": "conversations", "data": [time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), response["role"], response["content"]]})
-        
+        self.cache_queue.put(
+            {
+                "type": "conversations",
+                "data": [
+                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                    response["role"],
+                    response["content"],
+                ],
+            }
+        )
 
     def clear_chat_records(self):
         self.chat_records.clear()
 
-    def run_msg_handler(self):
-        logger.success("LLM service started")
-        for event in iter(self.handler_queue.get, None):
-            try:
-                if event["type"] == "invoke":
-                    self.send_message(event["data"])
-                else:
-                    pass
-            except Exception as e:
-                logger.error("LLM invoke error: {0}".format(e))
+    # def run_msg_handler(self):
+    #     logger.success("LLM service started")
+    #     for event in iter(self.handler_queue.get, None):
+    #         try:
+    #             if event["type"] == "invoke":
+    #                 self.send_message(event["data"])
+    #             else:
+    #                 pass
+    #         except Exception as e:
+    #             logger.error("LLM invoke error: {0}".format(e))
+
+    # def run(self):
+    #     self.run_msg_handler()
 
     def run(self):
-        self.run_msg_handler()
+        while True:
+            event = self.handler_queue.get()
+            if event["type"] == "invoke":
+                self.send_message(event["data"])
+            else:
+                pass

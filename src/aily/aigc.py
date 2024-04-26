@@ -240,6 +240,7 @@ class AIGC:
     def run_msg_handler(self):
         logger.success("AIGC service started")
         for event in iter(self.event_queue.get, None):
+            logger.info("received event: {0}".format(event["type"]))
             if event["type"] == "wakeup":
                 self.wakeup.on_next(event["data"])
             elif event["type"] == "on_record_begin":
@@ -263,18 +264,18 @@ class AIGC:
                 self.on_invoke_end.on_next(event["data"])
             else:
                 pass
-
+    
     async def main(self):
         self.init()
         tasks = [
             threading.Thread(target=self.run_msg_handler, daemon=True),
-            self.hardware,
-            self.llm,
-            self.cache
+            threading.Thread(target=self.llm.run, daemon=True),
         ]
+        self.hardware.start()
         for task in tasks:
             task.start()
 
+        self.hardware.join()
         for task in tasks:
             task.join()
 
@@ -286,3 +287,26 @@ class AIGC:
             pass
         finally:
             loop.close()
+
+    # async def main(self):
+    #     self.init()
+    #     tasks = [
+    #         threading.Thread(target=self.run_msg_handler, daemon=True),
+    #         self.hardware,
+    #         self.llm,
+    #         self.cache
+    #     ]
+    #     for task in tasks:
+    #         task.start()
+
+    #     for task in tasks:
+    #         task.join()
+
+    # def run(self):
+    #     loop = asyncio.get_event_loop()
+    #     try:
+    #         loop.run_until_complete(self.main())
+    #     except KeyboardInterrupt as e:
+    #         pass
+    #     finally:
+    #         loop.close()
