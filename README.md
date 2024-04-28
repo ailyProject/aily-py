@@ -6,15 +6,35 @@
 pip install aily-py
 ```
 
+## 配置说明
+> .env配置文件各参数说明
+
+- `PORT`：串口设备路径
+- `BAUDRATE`: 波特率
+- `SERIAL_TIMEOUT`: 串口读取超时时间
+- `CONVERSATION_MODE`: 对话模式(`single`、`multi`、`manual`)
+- `LLM_URL`: 大模型服务地址
+- `LLM_KEY`: 大模型key
+- `LLM_MODEL`: 使用的模型
+- `LLM_TEMPERATURE`: 温度
+- `LLM_PRE_PROMPT`: ''
+- `LLM_MAX_TOKEN_LENGTH`: ''
+
+- `TTS_MODEL`: 文字转语音使用的模型
+- `TTS_URL`: 文字转语音服务的地址
+- `TTS_KEY`: 文字转语音服务的key
+- `TTS_ROLE`: 文字转语音角色
+
+- `STT_MODEL`: 语音转文字使用的模型
+- `STT_KEY`: 语音转文字使用的key
+- `STT_URL`: 语音转文字服务地址
+
 ## 快速开始
 
 ```python
 import os
 from aily import AIGC
 from aily.tools import speech_to_text, text_to_speech, speex_decoder
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 def record_end_handler(data):
@@ -35,7 +55,7 @@ def invoke_end_handler(data):
   aigc.play(speech_data)
 
 
-aigc = AIGC(os.getenv("PORT"))
+aigc = AIGC(".env")
 aigc.on_record_end.subscribe(lambda i: record_end_handler(i))
 aigc.on_invoke_end.subscribe(lambda i: invoke_end_handler(i))
 aigc.run()
@@ -44,29 +64,19 @@ aigc.run()
 
 ## 可订阅的事件
 
-- wakeup: 唤醒事件
-- on_record_begin: 语音录制开始事件
-- on_record_end: 语音录制结束事件
-- on_play_begin: 语音播放开始事件
-- on_play_end: 语音播放结束事件
-- on_recognition: 离线指令识别
-- on_direction: 音源方向识别
-- on_invoke_begin: LLM调用开始事件
-- on_invoke_end: LLM调用结束事件
+- `wakeup`: 唤醒事件
+- `on_record_begin`: 语音录制开始事件
+- `on_record_end`: 语音录制结束事件
+- `on_play_begin`: 语音播放开始事件
+- `on_play_end`: 语音播放结束事件
+- `on_recognition`: 离线指令识别
+- `on_direction`: 音源方向识别
+- `on_invoke_begin`: LLM调用开始事件
+- `on_invoke_end`: LLM调用结束事件
 
 ## 参数说明
 
 ```python
-# 设置大模型key
-aigc.set_key("key")
-# 设置大模型url
-aigc.set_server("url")
-# 设置调用的模型
-aigc.set_model("model")
-# 设置pre_prompt
-aigc.set_pre_prompt("pre_prompt")
-# 设置temperature
-aigc.set_temperature("temperature")
 # 设置等待词（可设置文字或音频文件路径）
 aigc.set_wait_word("wait_word")
 # 设置等待词是否自动播放
@@ -81,7 +91,7 @@ aigc.set_custom_llm_invoke("custom_invoke")
 
 ## 工具调用
 
-> 默认提供了解码工具、语音转文字工具、文字转语音工具
+> 默认提供了解码工具、语音转文字工具、文字转语音工具，相关的配置均再配置文件".env"中进行
 
 ### 解码工具(speex_decoder)
 
@@ -93,31 +103,16 @@ aigc.set_custom_llm_invoke("custom_invoke")
 
 #### speech_to_text
 
-> 该方法调用的是openai的whisper模型，所以需要提供oepnai的key
-
 - 参数说明
     - filename: 音频文件名
     - file: 音频文件
-    - base_url: openai的url
-    - api_key: openai的key
-
-#### speech_to_text_sr
-
-> 该方法目前调用的是微软azure的语音服务接口，所以需要提供azure的key
-
-- 参数说明
-    - file: 音频文件
-    - key: azure的key
-    - language: 语言，默认"zh-CN"
-    - location: 位置，默认"eastasia"
 
 ### 文字转语音(text_to_speech)
+
+#### edge-tts
 > 使用的是edge-tts: https://github.com/rany2/edge-tts
 
-- 参数说明
-    - text: 文字
-    - voice: 语音类型，默认"zh-CN-XiaoxiaoNeural"
-  - 语音类型
+- 可选语音角色
     - zh-CN-XiaoxiaoNeural 
     - zh-CN-XiaoyiNeural 
     - zh-CN-YunjianNeural 
@@ -132,6 +127,19 @@ aigc.set_custom_llm_invoke("custom_invoke")
     - zh-TW-HsiaoChenNeural 
     - zh-TW-HsiaoYuNeural 
     - zh-TW-YunJheNeural
+    - ....
+
+
+#### tts-1
+> https://platform.openai.com/docs/guides/text-to-speech
+- 可选语音角色：
+    - Alloy
+    - Echo
+    - Fable
+    - Onyx
+    - Nova
+    - Shimmer
+
 
 ## 自定义
 
