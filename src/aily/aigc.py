@@ -53,18 +53,18 @@ class AIGC:
         self.custom_llm_invoke = None
         self.llm = None
         self.llm_key = os.getenv("LLM_KEY")
-        self.llm_model_name = os.getenv("LLM_MODEL", "gpt-3.5-turbo")
+        self.llm_model_name = os.getenv("LLM_MODEL") or "gpt-3.5-turbo"
         self.llm_server = os.getenv("LLM_URL")
-        self.llm_temperature = float(os.getenv("LLM_TEMPERATURE", 0.5))
+        self.llm_temperature = float(os.getenv("LLM_TEMPERATURE") or 0.5)
         self.llm_pre_prompt = os.getenv("LLM_PRE_PROMPT")
-        self.llm_max_token_length = int(os.getenv("LLM_MAX_TOKEN_LENGTH", 16384))
+        self.llm_max_token_length = int(os.getenv("LLM_MAX_TOKEN_LENGTH") or 16384)
 
         self.wait_words_list = []
         self.wait_words_voice_list = []
         self.wait_words_init = True
         self.wait_words_voice_auto_play = True
         self.wait_words_data = bytearray()
-        self.wait_words_voice_loop_play = os.getenv("WAIT_WORDS_LOOP_PLAY", False)
+        self.wait_words_voice_loop_play = bool(os.getenv("WAIT_WORDS_LOOP_PLAY") or False)
 
         self.invalid_words = os.getenv("INVALID_WORDS")
         self.invalid_voice = None

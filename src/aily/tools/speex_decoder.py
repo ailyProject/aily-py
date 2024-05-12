@@ -4,7 +4,7 @@ from loguru import logger
 
 
 @retry(stop=stop_after_attempt(5), wait=wait_random_exponential(multiplier=1, max=40))
-def speex_decoder(file_content, result_type="mp3"):
+def speex_decoder(file_content, result_type="wav"):
     url = "http://101.34.93.13:7676/decode?resultType={0}".format(result_type)
 
     files = [
