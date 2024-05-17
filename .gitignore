@@ -2,6 +2,9 @@
 *.egg-info
 dist
 .env
+.testvenv
+.venv
+venv
 __pycache__/
 tests/__pycache__/
 build

@@ -8,11 +8,11 @@ from loguru import logger
 
 
 @retry(stop=stop_after_attempt(5), wait=wait_random_exponential(multiplier=1, max=40))
-def text_to_speech(text, output_file=None) -> bytes:
-    model = os.environ.get("TTS_MODEL")
-    key = os.environ.get("TTS_KEY")
+def text_to_speech(text, output_file=None, model=None, key=None, voice=None) -> bytes:
+    model = model or os.environ.get("TTS_MODEL")
+    key = key or os.environ.get("TTS_KEY")
 
-    if model == "":
+    if not model:
         raise Exception("Text to speech model is not set")
 
     if not output_file:
@@ -20,7 +20,7 @@ def text_to_speech(text, output_file=None) -> bytes:
 
     if model == "edge":
         try:
-            role = os.environ.get("TTS_ROLE", "zh-CN-XiaoxiaoNeural")
+            role = voice or os.environ.get("TTS_ROLE") or "zh-CN-XiaoxiaoNeural"
             communicate = edge_tts.Communicate(text, role)
             asyncio.run(communicate.save(output_file))
         except Exception as e:
@@ -32,7 +32,7 @@ def text_to_speech(text, output_file=None) -> bytes:
             )
     elif model == "tts-1":
         try:
-            role = os.environ.get("TTS_ROLE", "alloy")
+            role = voice or os.environ.get("TTS_ROLE") or "alloy"
             client = OpenAI(base_url=os.environ.get("TTS_URL"), api_key=key)
             res = client.audio.speech.create(
                 model=model,
