@@ -1,6 +1,8 @@
 import sqlite3
 import os
 
+from loguru import logger
+
 
 class CRUDModel:
     def __init__(self):
@@ -11,13 +13,15 @@ class CRUDModel:
         self.cursor = self.conn.cursor()
 
     def _create_table(self, table_name, columns):
+        logger.debug("Creating table: {0}".format(table_name))
         columns = ', '.join(columns)
-        self.cursor.execute(f"CREATE TABLE {table_name} ({columns})")
+        self.cursor.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({columns})")
         self.conn.commit()
 
     def create_default_table(self):
-        if os.path.exists(self.db_name):
-            return
+        logger.info("Creating default table, db_name: {0}".format(self.db_name))
+        # if os.path.exists(self.db_name):
+        #     return
 
         self._create_table(
             "conversations",

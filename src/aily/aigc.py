@@ -84,9 +84,12 @@ class AIGC:
 
         # 数据库初始化
         if os.environ.get("DB_NAME"):
-            os.environ["DB_NAME"] = os.path.abspath(os.environ.get("DB_NAME"))
+            db_path = os.path.abspath(os.environ.get("DB_NAME"))
         else:
-            os.environ["DB_NAME"] = os.path.abspath("aigc.db")
+            db_path = os.path.abspath("aigc.db")
+        
+        logger.debug("DB path: {0}".format(db_path))
+        os.environ["DB_NAME"] = db_path
 
     def set_hardware(self, module):
         self.hardware = module
@@ -272,10 +275,12 @@ class AIGC:
             threading.Thread(target=self.llm.run, daemon=True),
         ]
         self.hardware.start()
+        self.cache.start()
         for task in tasks:
             task.start()
 
         self.hardware.join()
+        self.cache.join()
         for task in tasks:
             task.join()
 

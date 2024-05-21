@@ -70,6 +70,7 @@ class LLMs:
             model=kwargs["model"],
             messages=kwargs["messages"],
             temperature=kwargs["temperature"],
+            max_tokens=kwargs["max_token_length"],
             stream=False,
         )
 
@@ -87,6 +88,7 @@ class LLMs:
                 model=model,
                 temperature=temperature,
                 messages=messages,
+                max_token_length=self.max_token_length,
             )
         return self.default_invoke(
             url=url,
@@ -94,6 +96,7 @@ class LLMs:
             model=model,
             temperature=temperature,
             messages=messages,
+            max_token_length=self.max_token_length,
         )
 
     def send_message(self, content):
@@ -125,6 +128,8 @@ class LLMs:
                 "content": response["content"],
             }
         )
+        
+        logger.debug("LLM response: {0}".format(response))
 
         # TODO function call处理
         self.event_queue.put({"type": "on_invoke_end", "data": response["content"]})

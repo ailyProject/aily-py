@@ -1,4 +1,5 @@
 import threading
+import time
 from loguru import logger
 
 from .crud import CRUDModel
@@ -15,6 +16,7 @@ class Cache(threading.Thread):
         self.crud.create_default_table()
         while True:
             event = self.cache_queue.get()
+            logger.debug(f"Cache event: {event}")
             if not event:
                 continue
 
@@ -25,3 +27,5 @@ class Cache(threading.Thread):
                     )
                 except Exception as e:
                     logger.error(f"Cache insert error: {e}")
+            
+            # time.sleep(0.1)
