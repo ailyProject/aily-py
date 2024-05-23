@@ -29,7 +29,11 @@ class LLMs:
         self.event_queue = device.event_queue
         self.handler_queue = device.llm_invoke_queue
         self.cache_queue = device.cache_queue
-        self.encoding = tiktoken.get_encoding("cl100k_base")
+        try:
+            self.encoding = tiktoken.get_encoding("cl100k_base")
+        except Exception as e:
+            logger.error("Ticktoken encoding error: {0}".format(e))
+            self.encoding = None
 
     def set_custom_invoke(self, custom_invoke: callable):
         self.custom_invoke = custom_invoke
@@ -39,6 +43,9 @@ class LLMs:
         return num_tokens
 
     def build_prompt(self, messages):
+        if self.encoding is None:
+            return messages
+
         if self.pre_prompt:
             current_token_length = self.get_text_token_count(self.pre_prompt)
         else:
