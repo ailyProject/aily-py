@@ -18,6 +18,8 @@ import threading
 class AIGC:
     # 事件
     wakeup = Subject()
+    on_function_call = Subject()
+
     on_record_begin = Subject()
     on_record_end = Subject()
     on_play_begin = Subject()
@@ -57,14 +59,23 @@ class AIGC:
         self.llm_server = os.getenv("LLM_URL")
         self.llm_temperature = float(os.getenv("LLM_TEMPERATURE") or 0.5)
         self.llm_pre_prompt = os.getenv("LLM_PRE_PROMPT")
-        self.llm_max_token_length = int(os.getenv("LLM_MAX_TOKEN_LENGTH") or 16384)
+        self.llm_max_token_length = int(os.getenv("LLM_MAX_TOKEN_LENGTH") or 1200)
+
+        self.llm_vision_model_name = os.getenv("LLM_VISION_MODEL") or "gpt-4o"
+        self.llm_vision_key = os.getenv("LLM_VISION_KEY") or self.llm_key
+        self.llm_vision_server = os.getenv("LLM_VISION_URL") or self.llm_server
+
+        self.llm_tools = None
+        self.llm_tool_choice = None
 
         self.wait_words_list = []
         self.wait_words_voice_list = []
         self.wait_words_init = True
         self.wait_words_voice_auto_play = True
         self.wait_words_data = bytearray()
-        self.wait_words_voice_loop_play = bool(os.getenv("WAIT_WORDS_LOOP_PLAY") or False)
+        self.wait_words_voice_loop_play = bool(
+            os.getenv("WAIT_WORDS_LOOP_PLAY") or False
+        )
 
         self.invalid_words = os.getenv("INVALID_WORDS")
         self.invalid_voice = None
@@ -87,7 +98,7 @@ class AIGC:
             db_path = os.path.abspath(os.environ.get("DB_NAME"))
         else:
             db_path = os.path.abspath("aigc.db")
-        
+
         logger.debug("DB path: {0}".format(db_path))
         os.environ["DB_NAME"] = db_path
 
@@ -99,6 +110,12 @@ class AIGC:
 
     def set_custom_llm_invoke(self, custom_invoke: callable):
         self.custom_llm_invoke = custom_invoke
+
+    def register_tools(self, tools):
+        self.llm_tools = tools
+
+    def choice_tool(self, tool_name):
+        self.llm_tool_choice = tool_name
 
     def clear_wait_words(self):
         self.wait_words_list.clear()
@@ -135,7 +152,7 @@ class AIGC:
         self.llm = LLMs(self)
         if self.custom_llm_invoke:
             self.llm.set_custom_invoke(self.custom_llm_invoke)
-    
+
     def _cache_init(self):
         self.cache = Cache(self)
 
@@ -212,6 +229,19 @@ class AIGC:
                 self.last_conversation_time = time.time()
             self.llm_invoke_queue.put({"type": "invoke", "data": content})
 
+    def reply_message(self, call_id, content, reply_type="text"):
+        if content:
+            self.llm_invoke_queue.put(
+                {
+                    "type": "reply",
+                    "data": {
+                        "call_id": call_id,
+                        "content": content,
+                        "reply_type": reply_type,
+                    },
+                }
+            )
+
     def set_key(self, key):
         if self.llm:
             self.llm.set_key(key)
@@ -267,7 +297,7 @@ class AIGC:
                 self.on_invoke_end.on_next(event["data"])
             else:
                 pass
-    
+
     async def main(self):
         self.init()
         tasks = [

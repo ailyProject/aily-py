@@ -27,8 +27,13 @@ class LLMs:
         self.pre_prompt = device.llm_pre_prompt
         self.max_token_length = device.llm_max_token_length
         self.custom_invoke = None
-        self.tools = None
-        self.tool_choice = None
+
+        self.vision_model = device.llm_vision_model_name
+        self.vision_key = device.llm_vision_key
+
+        self.tools = device.llm_tools
+        self.tool_choice = device.llm_tool_choice
+
         self.function_calls = {}
 
         self.event_queue = device.event_queue
@@ -97,7 +102,7 @@ class LLMs:
         try:
             headers = {
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
+                "Authorization": f"Bearer {self.vision_key}",
             }
 
             payload = {
@@ -197,40 +202,73 @@ class LLMs:
             tool_function_name = tool_calls[0].function.name
             tool_query_string = eval(tool_calls[0].function.arguments)["query"]
 
+            self.device.on_function_call.on_next(
+                {
+                    "id": tool_call_id,
+                    "name": tool_function_name,
+                    "query": tool_query_string,
+                }
+            )
+
+            self.function_calls[tool_call_id] = {"name": tool_function_name}
+
             # 查找self.function_calls中是否有对应的tool_function_name
-            if tool_function_name in self.function_calls:
-                tool = self.function_calls[tool_function_name]
-            else:
-                logger.error(f"未找到对应的tool_function_name: {tool_function_name}")
-                raise Exception(f"未找到对应的tool_function_name: {tool_function_name}")
+            # if tool_function_name in self.function_calls:
+            #     tool = self.function_calls[tool_function_name]
+            # else:
+            #     logger.error(f"未找到对应的tool_function_name: {tool_function_name}")
+            #     raise Exception(f"未找到对应的tool_function_name: {tool_function_name}")
 
-            tool_res = tool["func"](tool_query_string)
-            if tool["return_type"] == "image":
-                pass
-            else:
-                self.chat_records.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_call_id,
-                        "name": tool_function_name,
-                        "content": tool_res,
-                    }
-                )
+            # tool_res = tool["func"](tool_query_string)
+            # if tool["return_type"] == "image":
+            #     pass
+            # else:
+            #     self.chat_records.append(
+            #         {
+            #             "role": "tool",
+            #             "tool_call_id": tool_call_id,
+            #             "name": tool_function_name,
+            #             "content": tool_res,
+            #         }
+            #     )
 
-                messages = self.build_prompt(self.chat_records)
-                response_with_function_call = self.invoke(
-                    self.url, self.api_key, self.model, self.temperature, messages
-                )
+            #     messages = self.build_prompt(self.chat_records)
+            #     response_with_function_call = self.invoke(
+            #         self.url, self.api_key, self.model, self.temperature, messages
+            #     )
 
-                self.save_content(
-                    response_with_function_call["role"],
-                    response_with_function_call["content"],
-                )
-                finally_content = response_with_function_call["content"]
+            #     self.save_content(
+            #         response_with_function_call["role"],
+            #         response_with_function_call["content"],
+            #     )
+            #     finally_content = response_with_function_call["content"]
         else:
             finally_content = response["content"]
+            self.event_queue.put({"type": "on_invoke_end", "data": finally_content})
 
-        self.event_queue.put({"type": "on_invoke_end", "data": finally_content})
+    def tool_reply(self, tool_call_id, content, reply_type="text"):
+        try:
+            self.chat_records.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "name": self.function_calls[tool_call_id]["name"],
+                    "content": content,
+                }
+            )
+            messages = self.build_prompt(self.chat_records)
+            if reply_type == "image":
+                response = self.chat_vision_request(
+                    messages[-1]["content"], content, self.vision_model
+                )
+            else:
+                response = self.invoke(
+                    self.url, self.api_key, self.model, self.temperature, messages
+                )
+            self.save_content(response["role"], response["content"])
+            self.event_queue.put({"type": "on_invoke_end", "data": response["content"]})
+        except Exception as e:
+            logger.error(f"工具调用异常: {e}")
 
     def clear_chat_records(self):
         self.chat_records.clear()
@@ -240,5 +278,7 @@ class LLMs:
             event = self.handler_queue.get()
             if event["type"] == "invoke":
                 self.send_message(event["data"])
+            elif event["type"] == "reply":
+                self.tool_reply(event["call_id"], event["content"], event["reply_type"])
             else:
                 pass
