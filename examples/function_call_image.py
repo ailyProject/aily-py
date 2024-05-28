@@ -7,8 +7,7 @@ from loguru import logger
 
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
-        encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
-    return encoded_string
+        return base64.b64encode(image_file.read()).decode("utf-8")
 
 
 def function_call_handler(event):
@@ -16,9 +15,19 @@ def function_call_handler(event):
     call_id = event["id"]
     if event["name"] == "get_picture":
         logger.debug("调用摄像头拍照")
+        # TODO 调用摄像头拍照
         
+        # 方式一：直接返回图片的URL
+        # content = {
+        #     "url": 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg'
+        # }
+        
+        # 方式二：返回图片的base64编码
         image = encode_image("./vision_test_image.jpg")
-        aigc.reply_message(call_id, image, "image")
+        content = {
+            "url": f"data:image/jpeg;base64,{image}"
+        }
+        aigc.reply_message(call_id, content, "image")
 
 
 def record_end_handler(data):
@@ -60,6 +69,6 @@ aigc.on_invoke_end.subscribe(lambda i: invoke_end_handler(i))
 aigc.on_function_call.subscribe(lambda i: function_call_handler(i))
 
 aigc.register_tools(tools)
-aigc.choice_tool("get_picture")
+aigc.choice_tool({"type": "function", "function": {"name": "get_picture"}})
 
 aigc.run()

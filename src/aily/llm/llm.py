@@ -28,6 +28,7 @@ class LLMs:
         self.max_token_length = device.llm_max_token_length
         self.custom_invoke = None
 
+        self.vision_url = device.llm_vision_server
         self.vision_model = device.llm_vision_model_name
         self.vision_key = device.llm_vision_key
 
@@ -102,10 +103,10 @@ class LLMs:
             logger.error(f"LLM调用异常: {e}")
             raise e
 
-    @retry(
-        wait=wait_random_exponential(multiplier=1, max=10), stop=stop_after_attempt(3)
-    )
-    def chat_vision_request(self, message, image, model):
+    # @retry(
+    #     wait=wait_random_exponential(multiplier=1, max=10), stop=stop_after_attempt(3)
+    # )
+    def chat_vision_request(self, message, image_url, model):
         try:
             headers = {
                 "Content-Type": "application/json",
@@ -124,7 +125,7 @@ class LLMs:
                             },
                             {
                                 "type": "image_url",
-                                "image_url": {"url": f"data:image/jpeg;base64,{image}"},
+                                "image_url": image_url,
                             },
                         ],
                     }
@@ -132,11 +133,13 @@ class LLMs:
                 "max_tokens": self.max_token_length,
             }
 
-            url = "{0}/chat/completions".format(os.getenv("OPENAI_API_URL"))
+            url = "{0}/chat/completions".format(self.vision_url)
+            
+            logger.debug("vision request: {0}".format(payload))
 
             response = requests.post(url, headers=headers, json=payload)
 
-            logger.debug("vision response: {0}".format(response))
+            logger.debug("vision response: {0}".format(response.content))
 
             assistant_message = response.json()["choices"][0]["message"]
             logger.debug("assistant_message:", assistant_message)
@@ -201,13 +204,12 @@ class LLMs:
             self.url, self.api_key, self.model, self.temperature, messages
         )
         logger.debug("LLM response time: {0}".format(time.time() - start_time))
-        self.save_content(response["role"], response["content"])
 
         tool_calls = response["tool_calls"]
         if tool_calls:
             tool_call_id = tool_calls[0].id
             tool_function_name = tool_calls[0].function.name
-            tool_query_string = eval(tool_calls[0].function.arguments)["query"]
+            tool_query_string = tool_calls[0].function.arguments
 
             self.device.on_function_call.on_next(
                 {
@@ -252,30 +254,60 @@ class LLMs:
         else:
             finally_content = response["content"]
             self.event_queue.put({"type": "on_invoke_end", "data": finally_content})
+            self.save_content(response["role"], finally_content)
 
     def tool_reply(self, tool_call_id, content, reply_type="text"):
-        try:
-            self.chat_records.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call_id,
-                    "name": self.function_calls[tool_call_id]["name"],
-                    "content": content,
-                }
+        logger.debug("tool_call_id: {0}".format(tool_call_id))
+        logger.debug("function calls: {0}".format(self.function_calls))
+        last_message = self.chat_records[-1]
+        self.chat_records.append(
+            {
+                "role": "tool",
+                "tool_call_id": tool_call_id,
+                "name": self.function_calls[tool_call_id]["name"],
+                "content": content,
+            }
+        )
+        # messages = self.build_prompt(self.chat_records)
+        
+        logger.debug("message: {0}".format(last_message))
+        if reply_type == "image":
+            response = self.chat_vision_request(
+                last_message["content"], content, self.vision_model
             )
-            messages = self.build_prompt(self.chat_records)
-            if reply_type == "image":
-                response = self.chat_vision_request(
-                    messages[-1]["content"], content, self.vision_model
-                )
-            else:
-                response = self.invoke(
-                    self.url, self.api_key, self.model, self.temperature, messages
-                )
-            self.save_content(response["role"], response["content"])
-            self.event_queue.put({"type": "on_invoke_end", "data": response["content"]})
-        except Exception as e:
-            logger.error(f"工具调用异常: {e}")
+        else:
+            response = self.invoke(
+                self.url, self.api_key, self.model, self.temperature, last_message
+            )
+        
+        logger.debug("tool response: {0}".format(response))
+
+        self.save_content(response["role"], response["content"])
+        self.event_queue.put({"type": "on_invoke_end", "data": response["content"]})
+        # try:
+        #     logger.debug("tool_call_id: {0}".format(tool_call_id))
+        #     logger.debug("function calls: {0}".format(self.function_calls))
+        #     self.chat_records.append(
+        #         {
+        #             "role": "tool",
+        #             "tool_call_id": tool_call_id,
+        #             "name": self.function_calls[tool_call_id]["name"],
+        #             "content": content,
+        #         }
+        #     )
+        #     messages = self.build_prompt(self.chat_records)
+        #     if reply_type == "image":
+        #         response = self.chat_vision_request(
+        #             messages[-1]["content"], content, self.vision_model
+        #         )
+        #     else:
+        #         response = self.invoke(
+        #             self.url, self.api_key, self.model, self.temperature, messages
+        #         )
+        #     self.save_content(response["role"], response["content"])
+        #     self.event_queue.put({"type": "on_invoke_end", "data": response["content"]})
+        # except Exception as e:
+        #     logger.error(f"工具调用异常: {e}")
 
     def clear_chat_records(self):
         self.chat_records.clear()
@@ -283,9 +315,10 @@ class LLMs:
     def run(self):
         while True:
             event = self.handler_queue.get()
+            
             if event["type"] == "invoke":
                 self.send_message(event["data"])
             elif event["type"] == "reply":
-                self.tool_reply(event["call_id"], event["content"], event["reply_type"])
+                self.tool_reply(event["data"]["call_id"], event["data"]["content"], event["data"]["reply_type"])
             else:
                 pass

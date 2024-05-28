@@ -61,7 +61,7 @@ class AIGC:
         self.llm_pre_prompt = os.getenv("LLM_PRE_PROMPT")
         self.llm_max_token_length = int(os.getenv("LLM_MAX_TOKEN_LENGTH") or 1200)
 
-        self.llm_vision_model_name = os.getenv("LLM_VISION_MODEL") or "gpt-4o"
+        self.llm_vision_model_name = os.getenv("LLM_VISION_MODEL") or self.llm_model_name
         self.llm_vision_key = os.getenv("LLM_VISION_KEY") or self.llm_key
         self.llm_vision_server = os.getenv("LLM_VISION_URL") or self.llm_server
 

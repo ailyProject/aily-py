@@ -4,6 +4,7 @@ dist
 .env
 .testvenv
 .venv
+.devenv
 venv
 __pycache__/
 tests/__pycache__/
