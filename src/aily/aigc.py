@@ -48,15 +48,15 @@ class AIGC:
         self.baudrate = os.getenv("BAUDRATE")
 
         self.hardware = None
-        self.conversation_mode = os.getenv("CONVERSATION_MODE")
+        self.conversation_mode = os.getenv("CONVERSATION_MODE") or "single"
 
         self.audio_upload_cancel = False
 
         self.custom_llm_invoke = None
         self.llm = None
-        self.llm_key = os.getenv("LLM_KEY")
+        self.llm_key = os.getenv("LLM_KEY") or None
         self.llm_model_name = os.getenv("LLM_MODEL") or "gpt-3.5-turbo"
-        self.llm_server = os.getenv("LLM_URL")
+        self.llm_server = os.getenv("LLM_URL") or None
         self.llm_temperature = float(os.getenv("LLM_TEMPERATURE") or 0.5)
         self.llm_pre_prompt = os.getenv("LLM_PRE_PROMPT")
         self.llm_max_token_length = int(os.getenv("LLM_MAX_TOKEN_LENGTH") or 1200)
@@ -77,8 +77,13 @@ class AIGC:
             os.getenv("WAIT_WORDS_LOOP_PLAY") or False
         )
 
-        self.invalid_words = os.getenv("INVALID_WORDS")
+        self.invalid_words = os.getenv("INVALID_WORDS") or None
         self.invalid_voice = None
+
+        if self.llm_key is None:
+            raise RuntimeError("LLM_KEY is not set")
+        if self.llm_server is None:
+            raise RuntimeError("LLM_URL is not set")
 
         # 获取系统类型
         if sys.platform == "win32":
@@ -147,14 +152,17 @@ class AIGC:
             self.hardware = AudioModule(self)
         self.hardware.set_conversation_mode(self.conversation_mode)
         self.hardware.init()
+        logger.info("Hardware initialization completed")
 
     def _llm_init(self):
         self.llm = LLMs(self)
         if self.custom_llm_invoke:
             self.llm.set_custom_invoke(self.custom_llm_invoke)
+        logger.info("LLM initialization completed")
 
     def _cache_init(self):
         self.cache = Cache(self)
+        logger.info("Cache initialization completed")
 
     def _init(self):
         # 初始化等待词
@@ -170,15 +178,18 @@ class AIGC:
                         self.wait_words_voice_list.append(data)
                 else:
                     # 将文字转为语音
-                    speech_data = text_to_speech(words)
-                    self.wait_words_voice_list.append(speech_data)
+                    try:
+                        speech_data = text_to_speech(words)
+                        self.wait_words_voice_list.append(speech_data)
+                    except Exception as e:
+                        logger.error("Text to speech failed: {0}".format(e))
                     # filename = str(int(time.time() * 1000)) + ".mp3"
                     # save_path = self.wait_words_voice_path + "/" + filename
                     # with open(save_path, "wb") as f:
                     #     f.write(speech_data)
                     # self.wait_words_voice_list.append(save_path)
 
-            logger.info("Wait words initialization completed")
+        logger.info("Wait words initialization completed")
 
         # 读取默认
         if self.invalid_words:
@@ -188,12 +199,15 @@ class AIGC:
             else:
                 voice = text_to_speech(self.invalid_words)
                 self.invalid_voice = voice
+        logger.info("Invalid words initialization completed")
 
     def init(self):
         self._hardware_init()
         self._llm_init()
         self._cache_init()
         self._init()
+
+        logger.success("All initialization completed~~~")
 
     def set_conversation_mode(self, mode):
         self.conversation_mode = mode
@@ -322,26 +336,3 @@ class AIGC:
             pass
         finally:
             loop.close()
-
-    # async def main(self):
-    #     self.init()
-    #     tasks = [
-    #         threading.Thread(target=self.run_msg_handler, daemon=True),
-    #         self.hardware,
-    #         self.llm,
-    #         self.cache
-    #     ]
-    #     for task in tasks:
-    #         task.start()
-
-    #     for task in tasks:
-    #         task.join()
-
-    # def run(self):
-    #     loop = asyncio.get_event_loop()
-    #     try:
-    #         loop.run_until_complete(self.main())
-    #     except KeyboardInterrupt as e:
-    #         pass
-    #     finally:
-    #         loop.close()

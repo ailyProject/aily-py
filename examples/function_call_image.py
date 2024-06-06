@@ -1,8 +1,13 @@
 import base64
+import subprocess
 
 from aily import AIGC
 from aily.tools import speex_decoder, speech_to_text, text_to_speech
 from loguru import logger
+
+
+def call_camera(output_path):
+    subprocess.run(["rpicam-jpeg", "--output", output_path, "--timeout", "2000", "--width", "640", "--height", "480"])
 
 
 def encode_image(image_path):
@@ -15,7 +20,7 @@ def function_call_handler(event):
     call_id = event["id"]
     if event["name"] == "get_picture":
         logger.debug("调用摄像头拍照")
-        # TODO 调用摄像头拍照
+        call_camera("./sample.jpg")
         
         # 方式一：直接返回图片的URL
         # content = {
@@ -23,7 +28,7 @@ def function_call_handler(event):
         # }
         
         # 方式二：返回图片的base64编码
-        image = encode_image("./vision_test_image.jpg")
+        image = encode_image("./sample.jpg")
         content = {
             "url": f"data:image/jpeg;base64,{image}"
         }

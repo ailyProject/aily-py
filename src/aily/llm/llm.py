@@ -12,39 +12,75 @@ from tenacity import retry, wait_random_exponential, stop_after_attempt
 
 
 class LLMs:
-    def __init__(self, device):
-        # super(LLMs, self).__init__()
-        # self.daemon = True
+    chat_records = []
 
-        self.device = device
+    def __init__(self):
+        self._llm_url = ""
+        self._llm_key = ""
+        self._llm_model = ""
+        self._llm_temperature = 0.5
+        self._llm_pre_prompt = ""
+        self._llm_max_token_length = 1024
+        self._llm_custom_invoke = None
+
+        self._llm_tools = []
+        self._llm_tool_choice = "auto"
+
+        self._llm_vision_url = self._llm_url
+        self._llm_vision_key = self._llm_key
+        self._llm_vision_model = self._llm_model
+
         self.chat_records = []
 
-        self.url = device.llm_server
-        # self.url = "https://braintrustproxy.com/v1"
-        self.api_key = device.llm_key
-        self.model = device.llm_model_name
-        self.temperature = float(device.llm_temperature)
-        self.pre_prompt = device.llm_pre_prompt
-        self.max_token_length = device.llm_max_token_length
-        self.custom_invoke = None
+    @property
+    def llm_url(self):
+        return self._llm_url
 
-        self.vision_url = device.llm_vision_server
-        self.vision_model = device.llm_vision_model_name
-        self.vision_key = device.llm_vision_key
+    @llm_url.setter
+    def llm_url(self, value):
+        self._llm_url = value
 
-        self.tools = device.llm_tools
-        self.tool_choice = device.llm_tool_choice
+    @property
+    def llm_key(self):
+        return self._llm_key
 
-        self.function_calls = {}
+    @llm_key.setter
+    def llm_key(self, value):
+        self._llm_key = value
 
-        self.event_queue = device.event_queue
-        self.handler_queue = device.llm_invoke_queue
-        self.cache_queue = device.cache_queue
-        try:
-            self.encoding = tiktoken.get_encoding("cl100k_base")
-        except Exception as e:
-            logger.error("Ticktoken encoding error: {0}".format(e))
-            self.encoding = None
+    @property
+    def llm_model(self):
+        return self._llm_model
+
+    @llm_model.setter
+    def llm_model(self, value):
+        self._llm_model = value
+
+        # self.url = device.llm_server
+        # self.api_key = device.llm_key
+        # self.model = device.llm_model_name
+        # self.temperature = float(device.llm_temperature)
+        # self.pre_prompt = device.llm_pre_prompt
+        # self.max_token_length = device.llm_max_token_length
+        # self.custom_invoke = None
+        #
+        # self.vision_url = device.llm_vision_server
+        # self.vision_model = device.llm_vision_model_name
+        # self.vision_key = device.llm_vision_key
+        #
+        # self.tools = device.llm_tools
+        # self.tool_choice = device.llm_tool_choice
+        #
+        # self.function_calls = {}
+        #
+        # self.event_queue = device.event_queue
+        # self.handler_queue = device.llm_invoke_queue
+        # self.cache_queue = device.cache_queue
+        # try:
+        #     self.encoding = tiktoken.get_encoding("cl100k_base")
+        # except Exception as e:
+        #     logger.error("Ticktoken encoding error: {0}".format(e))
+        #     self.encoding = None
 
     def set_custom_invoke(self, custom_invoke: callable):
         self.custom_invoke = custom_invoke
@@ -103,9 +139,9 @@ class LLMs:
             logger.error(f"LLM调用异常: {e}")
             raise e
 
-    # @retry(
-    #     wait=wait_random_exponential(multiplier=1, max=10), stop=stop_after_attempt(3)
-    # )
+    @retry(
+        wait=wait_random_exponential(multiplier=1, max=10), stop=stop_after_attempt(3)
+    )
     def chat_vision_request(self, message, image_url, model):
         try:
             headers = {
@@ -134,15 +170,15 @@ class LLMs:
             }
 
             url = "{0}/chat/completions".format(self.vision_url)
-            
-            logger.debug("vision request: {0}".format(payload))
+
+            # logger.debug("vision request: {0}".format(payload))
 
             response = requests.post(url, headers=headers, json=payload)
 
-            logger.debug("vision response: {0}".format(response.content))
+            # logger.debug("vision response: {0}".format(response.content))
 
             assistant_message = response.json()["choices"][0]["message"]
-            logger.debug("assistant_message:", assistant_message)
+            # logger.debug("assistant_message:", assistant_message)
             return assistant_message
         except Exception as e:
             raise e
@@ -269,7 +305,7 @@ class LLMs:
             }
         )
         # messages = self.build_prompt(self.chat_records)
-        
+
         logger.debug("message: {0}".format(last_message))
         if reply_type == "image":
             response = self.chat_vision_request(
@@ -279,7 +315,7 @@ class LLMs:
             response = self.invoke(
                 self.url, self.api_key, self.model, self.temperature, last_message
             )
-        
+
         logger.debug("tool response: {0}".format(response))
 
         self.save_content(response["role"], response["content"])
@@ -315,7 +351,7 @@ class LLMs:
     def run(self):
         while True:
             event = self.handler_queue.get()
-            
+
             if event["type"] == "invoke":
                 self.send_message(event["data"])
             elif event["type"] == "reply":
