@@ -1,1 +1,1 @@
-from .aigc import AIGC
+from .main import Aily

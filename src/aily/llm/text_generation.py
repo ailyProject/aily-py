@@ -1,4 +1,5 @@
 from openai import OpenAI
+from loguru import logger
 from tenacity import retry, wait_random_exponential, stop_after_attempt
 from typing import List, Any
 
@@ -15,8 +16,6 @@ class TextGeneration:
         self._tool_choice: Any = "auto"
 
         self._stream = False
-
-        self.client = OpenAI(base_url=self._url, api_key=self._key)
 
     @property
     def tools(self):
@@ -46,14 +45,21 @@ class TextGeneration:
         wait=wait_random_exponential(multiplier=1, max=10), stop=stop_after_attempt(3)
     )
     def invoke(self, messages: List):
-        response = self.client.chat.completions.create(
-            model=self._model,
-            messages=messages,
-            temperature=self._temperature,
-            max_tokens=self._max_length,
-            stream=self._stream,
-            tools=self._tools,
-            tool_choice=self._tool_choice
-        )
+        try:
+            client = OpenAI(base_url=self._url, api_key=self._key)
+            response = client.chat.completions.create(
+                model=self._model,
+                messages=messages,
+                temperature=self._temperature,
+                max_tokens=self._max_length,
+                stream=self._stream,
+                tools=self._tools,
+                tool_choice=self._tool_choice
+            )
 
-        return response.choices[0].message
+            logger.debug("Text Generation Response: {0}".format(response))
+
+            return response.choices[0].message
+        except Exception as e:
+            logger.error("Text Generation Error: {0}".format(e))
+            return None

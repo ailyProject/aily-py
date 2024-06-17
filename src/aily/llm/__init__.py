@@ -1,1 +1,1 @@
-from .llm import LLMs
+from .llm import AilyLLM

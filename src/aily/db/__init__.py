@@ -1,1 +1,1 @@
-from .main import Cache
+from .main import AilyCache

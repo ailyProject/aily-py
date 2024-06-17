@@ -2,10 +2,7 @@
 零一万物
 """
 
-import os
-import time
-
-from aily import AIGC
+from aily import Aily
 from aily.tools import speech_to_text, text_to_speech, speex_decoder
 
 
@@ -26,7 +23,9 @@ def invoke_end_handler(data):
     aigc.play(speech_data)
 
 
-aigc = AIGC(".env")
+aigc = Aily(".env")
+aigc.set_wait_words("./robot_thinking_16k_s16le.mp3")
+aigc.set_wwords_loop_play(True)
 aigc.on_record_end.subscribe(lambda i: record_end_handler(i))
 aigc.on_invoke_end.subscribe(lambda i: invoke_end_handler(i))
 aigc.run()

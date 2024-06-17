@@ -1,31 +1,43 @@
-import threading
 import time
+import json
+
 from loguru import logger
-
 from .crud import CRUDModel
+from reactivex.scheduler import ThreadPoolScheduler
+from reactivex import operators as ops
 
 
-class Cache(threading.Thread):
-    def __init__(self, device):
-        super(Cache, self).__init__()
-        self.daemon = True
-        self.cache_queue = device.cache_queue
+class AilyCache:
+    def __init__(self):
+        self._event = None
 
-    def run(self):
-        self.crud = CRUDModel()
-        self.crud.create_default_table()
-        while True:
-            event = self.cache_queue.get()
-            logger.debug(f"Cache event: {event}")
-            if not event:
-                continue
+    @property
+    def event(self):
+        return self._event
 
-            if event["type"] == "conversations":
-                try:
-                    self.crud.insert(
-                        "conversations", ["created_at", "role", "msg"], event["data"]
-                    )
-                except Exception as e:
-                    logger.error(f"Cache insert error: {e}")
-            
-            # time.sleep(0.1)
+    @event.setter
+    def event(self, value):
+        self._event = value
+
+    def event_handler(self, event):
+        event_type = event["type"]
+        logger.debug(f"Cache Event handler: {event_type}")
+        if event_type == "conversations":
+            try:
+                content = event["data"]["content"]
+                crud = CRUDModel()
+                crud.create_default_table()
+                role = event["data"]["role"]
+                msg_type = event["data"]["msg_type"]
+                msg = json.dumps(content) if isinstance(content, dict) else content
+                cur_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+                crud.insert(
+                    "conversations", ["created_at", "role", "msg_type", "msg"], [cur_time, role, msg_type, msg]
+                )
+            except Exception as e:
+                logger.error(f"Cache insert error: {e}")
+
+    def start(self):
+        self._event.pipe(
+            ops.observe_on(ThreadPoolScheduler(1))
+        ).subscribe(self.event_handler)

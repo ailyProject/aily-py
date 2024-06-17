@@ -29,6 +29,7 @@ class CRUDModel:
                 "id INTEGER PRIMARY KEY AUTOINCREMENT",
                 "created_at TEXT",
                 "role TEXT",
+                "msg_type TEXT",
                 "msg TEXT",
             ])
 

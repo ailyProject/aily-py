@@ -1,7 +1,7 @@
 import base64
 import subprocess
 
-from aily import AIGC
+from aily import Aily
 from aily.tools import speex_decoder, speech_to_text, text_to_speech
 from loguru import logger
 
@@ -68,7 +68,7 @@ tools = [{
 }]
 
 
-aigc = AIGC(".func_env")
+aigc = Aily(".func_env")
 aigc.on_record_end.subscribe(lambda i: record_end_handler(i))
 aigc.on_invoke_end.subscribe(lambda i: invoke_end_handler(i))
 aigc.on_function_call.subscribe(lambda i: function_call_handler(i))
