@@ -59,7 +59,7 @@ class TextGeneration:
 
             logger.debug("Text Generation Response: {0}".format(response))
 
-            return response.choices[0].message
+            return True, response.choices[0].message
         except Exception as e:
             logger.error("Text Generation Error: {0}".format(e))
-            return None
+            return False, str(e)

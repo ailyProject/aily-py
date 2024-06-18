@@ -1,10 +1,12 @@
-import os
-from aily import AIGC
+"""
+等待音设置
+"""
+
+from aily import Aily
 from aily.tools import speech_to_text, text_to_speech, speex_decoder
 
 
 def record_end_handler(data):
-    # 解码pcm
     voice_data = speex_decoder(data)
     # 语音转文字
     text = speech_to_text(voice_data)
@@ -21,7 +23,9 @@ def invoke_end_handler(data):
     aigc.play(speech_data)
 
 
-aigc = AIGC(".env")
+aigc = Aily(".env")
+aigc.set_wait_words("./robot_thinking_16k_s16le.mp3")
+aigc.set_wwords_loop_play(True)
 aigc.on_record_end.subscribe(lambda i: record_end_handler(i))
 aigc.on_invoke_end.subscribe(lambda i: invoke_end_handler(i))
 aigc.run()

@@ -1,3 +1,7 @@
+"""
+function calls example
+"""
+
 import base64
 import subprocess
 
@@ -74,6 +78,7 @@ aigc.on_invoke_end.subscribe(lambda i: invoke_end_handler(i))
 aigc.on_function_call.subscribe(lambda i: function_call_handler(i))
 
 aigc.register_tools(tools)
+# 为了方便测试，直接设定了必须调用函数
 aigc.choice_tool({"type": "function", "function": {"name": "get_picture"}})
 
 aigc.run()

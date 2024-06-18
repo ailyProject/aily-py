@@ -205,6 +205,7 @@ class AilyLLM:
                         "api_key": self._key,
                         "model": self._model,
                         "temperature": self._temperature,
+                        "max_token_length": self._max_token_length,
                         "messages": messages,
                     },
                 }
@@ -221,7 +222,10 @@ class AilyLLM:
                 text_generation.tools = self._tools
             if self._tool_choice:
                 text_generation.tool_choice = self._tool_choice
-            response = text_generation.invoke(messages)
+            status, response = text_generation.invoke(messages)
+            if not status:
+                self.invoke_error(response)
+                return None
 
             return response.to_dict() if not isinstance(response, dict) else response
 
@@ -246,58 +250,69 @@ class AilyLLM:
                 self._vision_model,
                 self._max_token_length,
             )
-            response = vision.invoke(message, image_url)
+            status, response = vision.invoke(message, image_url)
+            if not status:
+                self.invoke_error(response)
+                return None
             return response.to_dict() if not isinstance(response, dict) else response
 
-    def invoke_error(self):
-        self.event.on_next({"type": "on_invoke_error", "data": ""})
+    def invoke_error(self, data=""):
+        self.event.on_next({"type": "on_invoke_error", "data": data})
+
+    def invoke_result_handler(self, response):
+        if response is None:
+            return
+        tool_calls = response["tool_calls"] if "tool_calls" in response else None
+        if tool_calls:
+            tool_call_id = tool_calls[0]["id"]
+            tool_function_name = tool_calls[0]["function"]["name"]
+            tool_query_string = tool_calls[0]["function"]["arguments"]
+
+            self.event.on_next(
+                {
+                    "type": "on_function_call",
+                    "data": {
+                        "id": tool_call_id,
+                        "name": tool_function_name,
+                        "query": tool_query_string,
+                    },
+                }
+            )
+
+            self._function_calls[tool_call_id] = {"name": tool_function_name}
+        else:
+            finally_content = response["content"] if "content" in response else ""
+            if not finally_content:
+                logger.warning("Finally content is empty")
+            else:
+                self.save_content(response["role"], finally_content)
+                self.event.on_next(
+                    {"type": "on_invoke_end", "data": finally_content}
+                )
 
     def invoke(self, message: dict, invoke_type="text"):
         if invoke_type == "text":
             self.save_content(message["role"], message["content"], "text")
             messages = self.build_prompt(self.chat_records, self.max_token_length)
             response = self.invoke_text(messages)
-            if response is None:
-                self.invoke_error()
-                return
-            tool_calls = response["tool_calls"] if "tool_calls" in response else None
-            if tool_calls:
-                tool_call_id = tool_calls[0]["id"]
-                tool_function_name = tool_calls[0]["function"]["name"]
-                tool_query_string = tool_calls[0]["function"]["arguments"]
+            self.invoke_result_handler(response)
 
-                self.event.on_next(
-                    {
-                        "type": "on_function_call",
-                        "data": {
-                            "id": tool_call_id,
-                            "name": tool_function_name,
-                            "query": tool_query_string,
-                        },
-                    }
-                )
-
-                self._function_calls[tool_call_id] = {"name": tool_function_name}
-            else:
-                finally_content = response["content"] if "content" in response else ""
-                if not finally_content:
-                    logger.warning("Finally content is empty")
-                else:
-                    self.event.on_next(
-                        {"type": "on_invoke_end", "data": finally_content}
-                    )
-                    self.save_content(response["role"], finally_content)
         elif invoke_type == "image":
             last_message = self.chat_records[-1]
             self.save_content(message["role"], message["content"], "image")
             response = self.invoke_vision(last_message["content"], message["content"])
-            logger.debug("tool response: {0}".format(response))
-            if response is None:
-                self.invoke_error()
-                return
+            self.invoke_result_handler(response)
 
-            self.save_content(response["role"], response["content"])
-            self.event.on_next({"type": "on_invoke_end", "data": response["content"]})
+    def invoke_reply(self, data: dict):
+        if "role" not in data:
+            logger.warning("Role not in data")
+            raise Exception("role not in data")
+
+        if "content" not in data:
+            logger.warning("Content not in data")
+            raise Exception("content not in data")
+
+        self.invoke_result_handler(data)
 
     def send_message(self, content):
         # 开始调用事件发起
@@ -340,6 +355,8 @@ class AilyLLM:
                 event["data"]["content"],
                 event["data"]["reply_type"],
             )
+        elif event["type"] == "invoke_reply":
+            self.invoke_reply(event["data"])
         elif event["type"] == "clear":
             self.clear_chat_records()
         else:

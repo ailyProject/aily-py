@@ -46,7 +46,7 @@ class Vision:
             logger.debug("Vision Response: {0}".format(response))
             res_data = response.json()
             assistant_message = res_data["choices"][0]["message"] if "choices" in res_data else res_data
-            return assistant_message
+            return True, assistant_message
         except Exception as e:
             logger.error("Vision invoke error: {0}".format(e))
-            return None
+            return False, str(e)
