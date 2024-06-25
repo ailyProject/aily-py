@@ -1,4 +1,5 @@
 import tiktoken
+from tiktoken.load import load_tiktoken_bpe
 
 from reactivex.subject import Subject
 from reactivex.scheduler import ThreadPoolScheduler
@@ -323,7 +324,7 @@ class AilyLLM:
         if reply_type == "text":
             self.invoke(
                 {
-                    "role": "tool",
+                    "role": "user",
                     "tool_call_id": tool_call_id,
                     "name": self._function_calls[tool_call_id]["name"],
                     "content": content,
@@ -332,7 +333,7 @@ class AilyLLM:
         elif reply_type == "image":
             self.invoke(
                 {
-                    "role": "tool",
+                    "role": "user",
                     "tool_call_id": tool_call_id,
                     "name": self._function_calls[tool_call_id]["name"],
                     "content": content,

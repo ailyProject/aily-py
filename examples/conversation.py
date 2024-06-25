@@ -23,6 +23,7 @@ def invoke_end_handler(data):
 
 
 aily = Aily(".env")
+aily.set_wait_words("./robot_thinking_16k_s16le.mp3")
 aily.on_record_end.subscribe(lambda i: record_end_handler(i))
 aily.on_invoke_end.subscribe(lambda i: invoke_end_handler(i))
 aily.run()

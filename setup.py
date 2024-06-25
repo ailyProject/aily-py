@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="aily-py",
-    version="2.0.1-beta",
+    version="2.0.1",
     packages=find_packages(
         where='src',
         include=['*'],
