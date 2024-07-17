@@ -5,7 +5,7 @@
 
 from aily import Aily
 from zhipuai import ZhipuAI
-from aily.tools import speech_to_text, text_to_speech, speex_decoder
+from aily.tools import speech_to_text, text_to_speech
 from loguru import logger
 
 
@@ -26,10 +26,9 @@ def invoke(data):
     aily.invoke_reply(result)
 
 
-def record_end_handler(data):
-    voice_data = speex_decoder(data, )
+def record_end_handler(pcm_data):
     # 语音转文字
-    text = speech_to_text(voice_data)
+    text = speech_to_text(pcm_data)
     logger.debug("转换后的文字为: {0}".format(text))
     # 调用LLM
     aily.send_message(text)

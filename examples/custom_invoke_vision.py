@@ -7,7 +7,7 @@ import subprocess
 import time
 
 from aily import Aily
-from aily.tools import speex_decoder, speech_to_text, text_to_speech
+from aily.tools import speech_to_text, text_to_speech
 from zhipuai import ZhipuAI
 from loguru import logger
 
@@ -54,9 +54,8 @@ def function_call_handler(event):
         aigc.reply_message(call_id, content, "image")
 
 
-def record_end_handler(data):
-    voice_data = speex_decoder(data)
-    text = speech_to_text(voice_data)
+def record_end_handler(pcm_data):
+    text = speech_to_text(pcm_data)
     logger.info("转换后的文字为: {0}".format(text))
     aigc.send_message(text)
 

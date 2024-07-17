@@ -1,5 +1,6 @@
 import os
 from typing import Union
+from loguru import logger
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 from ..models import STTBaiduOptions, STTAzureOptions, STTWhisperOptions
 from .tools import stt_baidu, stt_azure, stt_whisper
@@ -9,8 +10,8 @@ from .tools import stt_baidu, stt_azure, stt_whisper
 def speech_to_text(
     pcm_data,
     *,
-    model=None,
-    options=Union[STTBaiduOptions, STTAzureOptions, STTWhisperOptions, None]
+    model: str = None,
+    options: Union[STTBaiduOptions, STTAzureOptions, STTWhisperOptions, None] = None,
 ) -> str:
     if not model:
         model = os.environ.get("STT_MODEL")
@@ -19,24 +20,27 @@ def speech_to_text(
 
     if model == "baidu":
         if options is None:
-            api_key = os.environ.get("STT_API_KEY")
+            api_key = os.environ.get("STT_KEY")
             secret_key = os.environ.get("STT_SECRET_KEY")
-            app_id = os.environ.get("STT_APP_ID")
+            app_id = os.environ.get("STT_APP_ID", "")
+            dev_pid = os.environ.get("STT_DEV_PID", 1537)
 
             options = STTBaiduOptions(
-                api_key=api_key, secret_key=secret_key, app_id=app_id
+                key=api_key, secret_key=secret_key, app_id=app_id, dev_pid=int(dev_pid)
             )
+            
+        logger.debug("options: {0}".format(options))
 
-        return stt_baidu(pcm_data, options)
+        return stt_baidu(pcm_data, options=options)
     elif model == "azure":
         if options is None:
             key = os.environ.get("STT_KEY")
-            location = os.environ.get("STT_LOCATION")
-            lang = os.environ.get("STT_LANG")
+            location = os.environ.get("STT_LOCATION", "eastasia")
+            lang = os.environ.get("STT_LANG", "zh-CN")
 
             options = STTAzureOptions(key=key, location=location, lang=lang)
 
-        return stt_azure(pcm_data, options)
+        return stt_azure(pcm_data, options=options)
     elif model == "whisper":
         if options is None:
             key = os.environ.get("STT_KEY")
@@ -44,7 +48,7 @@ def speech_to_text(
 
             options = STTWhisperOptions(key=key, url=url)
 
-        return stt_whisper(pcm_data, options)
+        return stt_whisper(pcm_data, options=options)
     else:
         raise Exception("Speech recognition model is not supported")
 

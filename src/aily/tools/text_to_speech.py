@@ -15,10 +15,10 @@ from .tools import tts_baidu, tts_openai, tts_edge, tts_azure
 def text_to_speech(
     text,
     *,
-    model=None,
-    options=Union[
+    model: str = None,
+    options: Union[
         TTSBaiduOptions, TTSOpenAIOptions, TTSEdgeOptions, TTSAzureOptions, None
-    ]
+    ] = None,
 ) -> bytes:
     if not model:
         model = os.environ.get("TTS_MODEL")
@@ -29,21 +29,22 @@ def text_to_speech(
         if options is None:
             api_key = os.environ.get("TTS_KEY")
             secret_key = os.environ.get("TTS_SECRET_KEY")
-            app_id = os.environ.get("TTS_APP_ID")
-            lang = os.environ.get("TTS_LANG")
+            app_id = os.environ.get("TTS_APP_ID") or ""
+            lang = os.environ.get("TTS_LANG") or "zh"
             options = TTSBaiduOptions(
                 key=api_key, secret_key=secret_key, app_id=app_id, lang=lang
             )
-        return tts_baidu(text, options)
+        logger.debug("options: {0}".format(options))
+        return tts_baidu(text, options=options)
     elif model == "edge":
         if options is None:
-            voice = os.environ.get("TTS_ROLE")
+            voice = os.environ.get("TTS_ROLE") or "zh-CN-XiaoxiaoNeural"
             options = TTSEdgeOptions(voice=voice)
         return tts_edge(text, options=options)
     elif model == "tts-1":
         if options is None:
             key = os.environ.get("TTS_KEY")
-            voice = os.environ.get("TTS_ROLE")
+            voice = os.environ.get("TTS_ROLE") or "fable"
             url = os.environ.get("TTS_URL")
             response_format = os.environ.get("TTS_RESPONSE_FORMAT")
             options = TTSOpenAIOptions(
@@ -53,9 +54,9 @@ def text_to_speech(
     elif model == "azure":
         if options is None:
             key = os.environ.get("TTS_KEY")
-            location = os.environ.get("TTS_LOCATION")
-            lang = os.environ.get("TTS_LANG")
-            voice = os.environ.get("TTS_ROLE")
+            location = os.environ.get("TTS_LOCATION") or "eastasia"
+            lang = os.environ.get("TTS_LANG") or "zh-CN"
+            voice = os.environ.get("TTS_ROLE") or "zh-CN-XiaoxiaoNeural"
             options = TTSAzureOptions(
                 key=key, location=location, lang=lang, voice=voice
             )
