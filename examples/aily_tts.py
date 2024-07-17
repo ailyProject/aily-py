@@ -1,13 +1,15 @@
-import serial
+"""
+需要配合aily TTS模块使用
+"""
+
 from aily import Aily
 
-from aily.tools import speex_decoder, speech_to_text
+from aily.tools import speech_to_text
 from loguru import logger
 
 
-def record_end_handler(data):
-    voice_data = speex_decoder(data)
-    text = speech_to_text(voice_data)
+def record_end_handler(pcm_data):
+    text = speech_to_text(pcm_data)
     logger.info("转换后的文字为: {0}".format(text))
     aily.send_message(text)
 
