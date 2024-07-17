@@ -30,6 +30,7 @@ class Aily:
     on_invoke_start = Subject()
     on_invoke_end = Subject()
     on_invalid_msg = Subject()
+    on_conversation_records = Subject()
 
     on_error = Subject()
 
@@ -394,6 +395,7 @@ class Aily:
 
     def play(self, data):
         # self.audio_playlist_queue.put({"type": "play_tts", "data": data})
+        self.aily_event.on_next({"type": "stop_play_mp3", "data": data})
         if self.use_aily_tts:
             self.aily_event.on_next({"type": "play_tts_by_aily", "data": data})
         else:
@@ -401,7 +403,7 @@ class Aily:
 
     def event_handler(self, event):
         event_type = event["type"]
-        logger.debug("Event: {0}".format(event_type))
+        # logger.debug("Event: {0}".format(event_type))
 
         if event_type == "wakeup":
             self.wakeup.on_next(event["data"])
@@ -432,6 +434,8 @@ class Aily:
             self.on_custom_invoke.on_next(event["data"])
         elif event_type == "on_custom_invoke_vision":
             self.on_custom_invoke_vision.on_next(event["data"])
+        elif event_type == "conversations":
+            self.on_conversation_records.on_next(event["data"])
         else:
             pass
 

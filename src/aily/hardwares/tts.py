@@ -65,7 +65,14 @@ class AilyTTS:
 
             logger.debug("Start to play TTS")
             content = self.gen_tts_buffer(event["data"])
+            
+            if not self.serial:
+                logger.debug("Serial is not initialized")
+                self.init()
             self.serial.write(content)
+        elif event_type == "wakeup":
+            logger.debug("Stop aily TTS")
+            self.serial.write(b"\xFD\x00\x01\x02")
 
     def start(self):
         self.event.pipe(

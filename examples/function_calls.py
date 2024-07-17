@@ -53,7 +53,7 @@ tools = [{
     "type": "function",
     "function": {
         "name": "get_picture",
-        "description": "充当眼睛的角色，当需要看到实际的图片或事物才能给出问题的有效回答时，调用此函数",
+        "description": "此函数用于调用摄像头拍照，获取周围环境的照片，是aily的眼睛，提供视觉能力输入",
         "parameters": {
             "type": "object",
             "properties": {

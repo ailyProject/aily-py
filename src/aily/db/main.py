@@ -1,5 +1,6 @@
 import time
 import json
+import urllib.parse
 
 from loguru import logger
 from .crud import CRUDModel
@@ -21,10 +22,10 @@ class AilyCache:
 
     def event_handler(self, event):
         event_type = event["type"]
-        logger.debug(f"Cache Event handler: {event_type}")
+        # logger.debug(f"Cache Event handler: {event_type}")
         if event_type == "conversations":
             try:
-                content = event["data"]["content"]
+                content = urllib.parse.quote(event["data"]["content"])
                 crud = CRUDModel()
                 crud.create_default_table()
                 role = event["data"]["role"]

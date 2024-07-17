@@ -406,7 +406,7 @@ class AilyAudio:
 
     def event_handler(self, event):
         event_type = event["type"]
-        logger.info("event type: {0}".format(event_type))
+        # logger.info("event type: {0}".format(event_type))
         if event_type == "play_tts":
             # 发起播放开始事件
             self.update_fill_code(FillCode.TTS_FILL)
@@ -432,7 +432,7 @@ class AilyAudio:
                 self.media_read_start = 0
                 self.media_read_end = MEDIA_READ_LENGTH
                 self.media(event["data"])
-        elif event_type == "on_invoke_end":
+        elif event_type == "stop_play_mp3":
             self.update_fill_code(FillCode.TTS_FILL)
             self.write(self.stop_byte_data)
 

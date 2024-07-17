@@ -47,15 +47,18 @@ class TextGeneration:
     def invoke(self, messages: List):
         try:
             client = OpenAI(base_url=self._url, api_key=self._key)
-            response = client.chat.completions.create(
-                model=self._model,
-                messages=messages,
-                temperature=self._temperature,
-                max_tokens=self._max_length,
-                stream=self._stream,
-                tools=self._tools,
-                tool_choice=self._tool_choice
-            )
+            data = {
+                "model": self._model,
+                "temperature": self._temperature,
+                "max_tokens": self._max_length,
+                "stream": self._stream,
+            }
+            
+            if self._tools:
+                data["tools"] = self._tools
+                data["tool_choice"] = self._tool_choice
+            
+            response = client.chat.completions.create(**data, messages=messages)
 
             logger.debug("Text Generation Response: {0}".format(response))
 

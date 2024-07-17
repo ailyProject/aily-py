@@ -1,3 +1,4 @@
+import time
 import tiktoken
 from tiktoken.load import load_tiktoken_bpe
 
@@ -295,7 +296,9 @@ class AilyLLM:
         if invoke_type == "text":
             self.save_content(message["role"], message["content"], "text")
             messages = self.build_prompt(self.chat_records, self.max_token_length)
+            start_time = int(time.time() * 1000)
             response = self.invoke_text(messages)
+            logger.debug("LLM模型调用: {0}".format(int(time.time() * 1000) - start_time))
             self.invoke_result_handler(response)
 
         elif invoke_type == "image":
