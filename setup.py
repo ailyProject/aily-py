@@ -19,6 +19,8 @@ setup(
         "requests",
         "pyserial",
         "openai",
+        "baidu-aip",
+        "chardet",
         "edge-tts == 6.1.10"
     ]
 )
