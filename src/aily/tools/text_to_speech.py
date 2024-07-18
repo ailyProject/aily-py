@@ -46,7 +46,7 @@ def text_to_speech(
             key = os.environ.get("TTS_KEY")
             voice = os.environ.get("TTS_ROLE") or "fable"
             url = os.environ.get("TTS_URL")
-            response_format = os.environ.get("TTS_RESPONSE_FORMAT")
+            response_format = os.environ.get("TTS_RESPONSE_FORMAT") or 'mp3'
             options = TTSOpenAIOptions(
                 key=key, voice=voice, url=url, response_format=response_format
             )
