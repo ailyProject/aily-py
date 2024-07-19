@@ -27,7 +27,7 @@ setup(
     ],
     author="stao",
     author_email="werewolf_st@hotmail.com",
-    description="Aily CLI",
+    description="Aily is a Python library for AI development.",
     long_description=open('README.md', 'r', encoding='utf-8').read(),
     long_description_content_type="text/markdown",
     url="https://aily.pro",
