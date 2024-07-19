@@ -4,10 +4,12 @@ setup(
     name="aily-py",
     version="2.0.1",
     packages=find_packages(
-        where='src',
-        include=['*'],
-        exclude=['tests']
+        exclude=["tests", "*.tests", "*.tests.*", "tests.*"]
     ),
+    entry_points='''
+        [console_scripts],
+        aily=aily.main:main
+    ''',
     install_requires=[
         "python-dotenv == 1.0.1",
         "aiohttp == 3.9.3",
@@ -22,5 +24,14 @@ setup(
         "baidu-aip",
         "chardet",
         "edge-tts == 6.1.10"
-    ]
+    ],
+    author="stao",
+    author_email="werewolf_st@hotmail.com",
+    description="Aily CLI",
+    long_description=open('README.md', 'r', encoding='utf-8').read(),
+    long_description_content_type="text/markdown",
+    url="https://aily.pro",
+    classifiers=[
+        'Programming Language :: Python :: 3',
+    ],
 )
